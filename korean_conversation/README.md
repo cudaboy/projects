@@ -203,7 +203,7 @@ URL: ```http://127.0.0.1:8000/chat/```
 
 본 프로젝트는 기본적인 챗봇 기능 구현 이후, 사용자 편의성 및 운영 환경 안정화를 위해 다음과 같은 업데이트를 계획하고 있습니다.
 
-- Streamlit UI 확장 (sidebar.py)
+- Streamlit UI 확장 (`sidebar.py`)
 
   대화 내역 다운로드(Export Chat) 기능 추가
 
@@ -213,4 +213,4 @@ URL: ```http://127.0.0.1:8000/chat/```
 
   로컬 Docker 이미지를 활용한 컨테이너 오케스트레이션 구성
 
-  deployment.yaml 및 service.yaml을 통한 Pod 스케일링 및 NodePort 네트워크 연결 테스트 진행
+  `deployment.yaml` 및 `service.yaml`을 통한 Pod 스케일링 및 NodePort 네트워크 연결 테스트 진행
