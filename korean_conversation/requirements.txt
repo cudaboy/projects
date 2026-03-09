@@ -8,12 +8,14 @@ chardet         # 파일 인코딩 자동 감지용
 torch
 torchvision
 torchaudio
+tensorflow
 tensorflow-datasets  # SubwordTextEncoder 사용을 위해 필요
 
 # API 서버 배포
 fastapi
 uvicorn[standard]
 pydantic
+streamlit  # <-- 새로 추가
 
 # 기타 유틸리티
 requests        # API 테스트용

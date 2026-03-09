@@ -1,6 +1,26 @@
 # 🤖 Korean Conversation Chatbot (Transformer)
 
+  📅 문서 버전: 본 README는 2026년 3월 10일 기준으로 작성 및 업데이트되었습니다.
+
 이 프로젝트 실습은 Transformer 아키텍처를 활용하여 한국어 대화 데이터를 학습하고, FastAPI를 통해 실시간 대화 서비스를 제공하는 챗봇 시스템입니다.
+
+<br>
+
+# ✔️ Tech Stack (개발 환경)
+
+- **Deep Learning Framework**
+  - ![PyTorch](https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=for-the-badge&logo=PyTorch&logoColor=white)
+
+- **API Server**
+  - ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+  - ![Uvicorn](https://img.shields.io/badge/Uvicorn-499848?style=for-the-badge)
+
+- **Frontend UI**
+  - ![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=Streamlit&logoColor=white)
+
+- **Environment**
+  - ![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
+  - ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
 
 <br>
 
@@ -26,14 +46,19 @@
 ```
 .
 ├── logs/                     # 생성된 로그 파일들이 저장되는 폴더
-│   ├── chatbot_2026-03-06.log # 오늘 날짜의 대화 및 에러 기록
+│   ├── chatbot_2026-03-06.log # 일자별 대화(USER/BOT) 및 에러 기록
 │   └ ...
-├── chatbot_api.py            # FastAPI 서버 실행 및 모델 배포 스크립트
-├── model.py                  # Transformer 모델 아키텍처 정의 클래스
-├── ko-con.pth                # 학습된 모델의 가중치(Weight) 파일
-├── ko-con_tokenizer.subwords # 텍스트 인코딩을 위한 단어 사전 데이터
-├── 20260306-1.ipynb          # 데이터 정제 및 모델 학습 프로세스 정리 notebook
-└── 20260306-2.ipynb          # 모델 성능 테스트 및 추론 실험 notebook
+├── app.py                    # Streamlit 웹 UI 앱의 메인 진입점 (실행 파일)
+├── main.py                   # Streamlit 채팅 화면 UI 구성 및 대화 상태(Session) 관리
+├── sidebar.py                # Streamlit 사이드바 UI (최대 길이 설정 및 대화 초기화)
+├── model_handler.py          # 모델 캐싱(@st.cache_resource) 로드 및 텍스트 생성 추론 로직
+├── chatbot_api.py            # FastAPI 기반 챗봇 백엔드 API 서버 구동 스크립트
+├── model.py                  # PyTorch 기반 Transformer 모델 아키텍처(Encoder/Decoder) 정의
+├── utils.py                  # 파일 및 콘솔 로깅 설정 등 공통 유틸리티 함수
+├── requirements.txt          # 프로젝트 실행에 필요한 파이썬 라이브러리 목록 (의존성)
+├── ko-con.pth                # 학습이 완료된 모델의 가중치(Weight) 파일
+├── ko-con_tokenizer.subwords # 텍스트 인코딩/디코딩을 위한 단어 사전 데이터
+└── training_260306.ipynb     # 데이터 정제 및 모델 학습 프로세스를 담은 Jupyter Notebook
 ```
 
 <br>
@@ -44,7 +69,7 @@
 
 - 데이터 추출 로직:
 
-  MQ(질문)와 다음 행의 SA(답변)가 쌍인 경우 ```shift(-1)``` 연산을 통해 질문-답변 쌍을 구성합니다.
+  raw data에서 MQ(질문)와 다음 행의 SA(답변)가 연결되는 답변인 경우 질문-답변 쌍을 구성합니다.
 
 - 데이터 필터링:
   질문 또는 답변이 **NULL**(결측치)인 경우 삭제합니다.
@@ -97,6 +122,63 @@ URL: ```http://127.0.0.1:8000/chat/```
 
 <br>
 
+# 🚀 Web UI Usage (Streamlit)
+
+사용자가 더 직관적으로 챗봇과 대화할 수 있도록 Streamlit 기반의 인터랙티브 웹 인터페이스를 제공합니다.
+
+- Web App 실행:
+```
+streamlit run app.py
+```
+
+- 접속 주소:
+  브라우저에서 http://localhost:8501로 접속합니다.
+
+  (Docker 컨테이너로 실행 시 -p 8501:8501 포트 매핑 옵션을 반드시 추가해 주세요.)
+
+- 주요 기능:
+  실시간 채팅: 웹 화면에서 챗봇과 즉각적으로 대화할 수 있습니다.
+  
+  사이드바 설정: 챗봇의 최대 답변 길이(Max Length)를 실시간으로 조절할 수 있습니다.
+  
+  대화 초기화: 기존 대화 기록을 지우고 새로운 세션을 시작할 수 있습니다.
+
+<br>
+
+# 🚀 Docker 빌드 및 실행 가이드
+
+1. 이미지 빌드하기
+  WSL 터미널에서 Dockerfile이 위치한 디렉토리로 이동한 후, 아래 명령어를 통해 이미지를 빌드합니다.
+  
+    (PyTorch와 가중치 파일의 용량 때문에 시간이 조금 걸릴 수 있습니다.)
+  
+    ```
+    docker build -t transformer-chatbot:v1 .
+    ```
+
+2. 컨테이너 실행하기
+  앞서 만든 이미지 하나로 두 가지 방식을 모두 실행할 수 있습니다.
+  
+    옵션 A: Streamlit 웹 UI 실행 (기본값)
+      Streamlit을 실행하려면 8501 포트를 연결합니다.
+  
+    ```
+    docker run -d --name chatbot-ui -p 8501:8501 transformer-chatbot:v1
+    ```
+      👉 실행 후 브라우저에서 http://localhost:8501로 접속하세요.
+
+    옵션 B: FastAPI 백엔드 서버 실행
+      FastAPI 서버로 실행하고 싶다면, docker run 명령어의 맨 끝에 실행 명령어를 덮어씌워 줍니다.
+      
+      포트는 `8000`을 연결합니다.
+
+    ```
+    docker run -d --name chatbot-api -p 8000:8000 transformer-chatbot:v1 uvicorn chatbot_api:app --host 0.0.0.0 --port 8000
+    ```
+      👉 실행 후 브라우저에서 http://localhost:8000/docs로 접속하여 API를 테스트하세요.
+
+<br>
+
 # 📝 Logging & Monitoring
 
 시스템의 안정적인 운영을 위해 logs/ 폴더 내에 일별 로그를 기록합니다.
@@ -114,3 +196,21 @@ URL: ```http://127.0.0.1:8000/chat/```
 - Size Mismatch: 모델 로드 시 레이어 크기가 다르면 ```VOCAB_SIZE```를 가중치 파일의 기준($8,096$ 등)에 맞게 조정해야 합니다.
 
 - TypeError: 전처리 중 숫자가 섞여 있다면 ```astype(str)```을 통해 문자열로 강제 변환 후 처리합니다.
+
+<br>
+
+# 💡 Future Work (향후 추가 및 개선 계획)
+
+본 프로젝트는 기본적인 챗봇 기능 구현 이후, 사용자 편의성 및 운영 환경 안정화를 위해 다음과 같은 업데이트를 계획하고 있습니다.
+
+- Streamlit UI 확장 (sidebar.py)
+
+  대화 내역 다운로드(Export Chat) 기능 추가
+
+  답변의 다양성 및 창의성을 제어할 수 있는 확률적 샘플링(Temperature, Top-K) 파라미터 조절 UI 도입
+
+- Kubernetes (Minikube) 배포 파이프라인 완성
+
+  로컬 Docker 이미지를 활용한 컨테이너 오케스트레이션 구성
+
+  deployment.yaml 및 service.yaml을 통한 Pod 스케일링 및 NodePort 네트워크 연결 테스트 진행
