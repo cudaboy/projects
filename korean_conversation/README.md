@@ -106,19 +106,19 @@ Google의 Transformer 모델을 기반으로 구현되었습니다.
 URL: ```http://127.0.0.1:8000/chat/```
 
 - Request Body:
-```
-{
-  "question": "오늘 점심 메뉴 추천해줘"
-}
-```
+  ```
+  {
+    "question": "오늘 점심 메뉴 추천해줘"
+  }
+  ```
 
 - Response:
-```
-{
-  "question": "오늘 점심 메뉴 추천해줘",
-  "answer": "따끈한 김치찌개 어떠신가요?"
-}
-```
+  ```
+  {
+    "question": "오늘 점심 메뉴 추천해줘",
+    "answer": "따끈한 김치찌개 어떠신가요?"
+  }
+  ```
 
 <br>
 
@@ -127,9 +127,9 @@ URL: ```http://127.0.0.1:8000/chat/```
 사용자가 더 직관적으로 챗봇과 대화할 수 있도록 Streamlit 기반의 인터랙티브 웹 인터페이스를 제공합니다.
 
 - Web App 실행:
-```
-streamlit run app.py
-```
+  ```
+  streamlit run app.py
+  ```
 
 - 접속 주소:
   브라우저에서 http://localhost:8501로 접속합니다.
