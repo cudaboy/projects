@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: chatbot-ui-service
+spec:
+  type: NodePort
+  selector:
+    app: chatbot-ui
+  ports:
+    - protocol: TCP
+      port: 8501        # 서비스가 노출할 포트
+      targetPort: 8501  # 연결될 컨테이너의 포트
+      nodePort: 30501   # 외부에서 접속할 때 사용할 포트 (30000~32767 사이)

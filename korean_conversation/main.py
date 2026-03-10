@@ -4,7 +4,7 @@ from utils import setup_logger
 
 logger = setup_logger()
 
-def run_chat(model, tokenizer, max_length):
+def run_chat(model, tokenizer):
     st.title("🤖 나만의 Transformer 챗봇")
 
     # 대화 기록을 저장할 세션 상태 초기화
@@ -29,7 +29,9 @@ def run_chat(model, tokenizer, max_length):
         with st.chat_message("assistant"):
             with st.spinner("답변을 생성하는 중입니다..."):
                 try:
-                    response = evaluate(prompt, model, tokenizer, max_length=max_length)
+                    # evaluate 함수 호출 시 max_length 인자를 제거했습니다. 
+                    # 이제 model_handler.py에 설정된 기본 길이를 사용합니다.
+                    response = evaluate(prompt, model, tokenizer)
                     st.markdown(response)
                     
                     # 챗봇 응답 상태 저장 및 로깅

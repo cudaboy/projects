@@ -18,17 +18,13 @@ def main():
     """
     
     # 1. 모델과 토크나이저 로드
-    # model_handler.py의 load_model_and_tokenizer 함수는 @st.cache_resource가 적용되어 있어
-    # 앱이 재실행되어도 모델을 다시 로드하지 않고 메모리에 유지된 객체를 재사용합니다.
     model, tokenizer = load_model_and_tokenizer()
     
-    # 2. 사이드바 UI 렌더링 및 설정값 받아오기
-    # 사용자가 슬라이더로 조절한 max_length 등의 설정값을 반환받습니다.
-    max_length = render_sidebar()
-    
-    # 3. 메인 채팅 인터페이스 실행
-    # 실제 채팅 UI를 출력하고 사용자의 입력에 따라 모델 추론(Inference)을 수행합니다.
-    run_chat(model, tokenizer, max_length)
+    # 2. 메인 채팅 인터페이스 먼저 실행 (여기서 대화 내용이 세션에 저장됨!)
+    run_chat(model, tokenizer)
+
+    # 3. 사이드바 UI 렌더링 (최신화된 대화 내용을 바탕으로 다운로드 버튼 활성화)
+    render_sidebar()
 
 # 파이썬 스크립트가 직접 실행될 때만 main() 함수를 호출합니다.
 if __name__ == "__main__":

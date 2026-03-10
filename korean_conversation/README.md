@@ -21,6 +21,7 @@
 - **Environment**
   - ![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
   - ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
+  - ![Kubernetes](https://img.shields.io/badge/kubernetes-%23326ce5.svg?style=for-the-badge&logo=kubernetes&logoColor=white)
 
 <br>
 
@@ -45,6 +46,9 @@
 프로젝트의 주요 파일 구성과 역할은 다음과 같습니다.
 ```
 .
+├── k8s/
+│   ├── deployment.yaml       # 도커 컨테이너 실행 방식 및 개수 정의
+│   └── service.yaml          # 쿠버네티스 내부의 파드 접근을 위한 네트워크 통로 개방
 ├── logs/                     # 생성된 로그 파일들이 저장되는 폴더
 │   ├── chatbot_2026-03-06.log # 일자별 대화(USER/BOT) 및 에러 기록
 │   └ ...
@@ -99,24 +103,27 @@ Google의 Transformer 모델을 기반으로 구현되었습니다.
 학습된 모델을 기반으로 실시간 대화 API를 제공합니다.
 
 - 서버 실행
-```uvicorn chatbot_api:app --reload```
+
+  ```bash
+  uvicorn chatbot_api:app --reload
+  ```
 
 - API Endpoint (POST)
 
 URL: ```http://127.0.0.1:8000/chat/```
 
 - Request Body:
-  ```
+  ```JSON
   {
-    "question": "오늘 점심 메뉴 추천해줘"
+    "question": "짜장면 한그릇 얼마에요?"
   }
   ```
 
 - Response:
-  ```
+  ```JSON
   {
-    "question": "오늘 점심 메뉴 추천해줘",
-    "answer": "따끈한 김치찌개 어떠신가요?"
+    "question": "짜장면 한그릇 얼마에요?",
+    "answer": "6000원입니다"
   }
   ```
 
@@ -127,7 +134,7 @@ URL: ```http://127.0.0.1:8000/chat/```
 사용자가 더 직관적으로 챗봇과 대화할 수 있도록 Streamlit 기반의 인터랙티브 웹 인터페이스를 제공합니다.
 
 - Web App 실행:
-  ```
+  ```bash
   streamlit run app.py
   ```
 
@@ -139,21 +146,21 @@ URL: ```http://127.0.0.1:8000/chat/```
 - 주요 기능:
   실시간 채팅: 웹 화면에서 챗봇과 즉각적으로 대화할 수 있습니다.
   
-  사이드바 설정: 챗봇의 최대 답변 길이(Max Length)를 실시간으로 조절할 수 있습니다.
-  
   대화 초기화: 기존 대화 기록을 지우고 새로운 세션을 시작할 수 있습니다.
+  
+  대화 내역 저장: 챗봇과 나눈 대화 기록을 .txt 파일로 다운로드(Export Chat)할 수 있습니다.
 
 <br>
 
-# 🚀 Docker 빌드 및 실행 가이드
+# 🐳 Docker 빌드 및 실행 가이드
 
 1. 이미지 빌드하기
-  WSL 터미널에서 Dockerfile이 위치한 디렉토리로 이동한 후, 아래 명령어를 통해 이미지를 빌드합니다.
+  Linux 터미널에서 Dockerfile이 위치한 디렉토리로 이동한 후, 아래 명령어를 통해 이미지를 빌드합니다.
   
     (PyTorch와 가중치 파일의 용량 때문에 시간이 조금 걸릴 수 있습니다.)
   
-    ```
-    docker build -t transformer-chatbot:v1 .
+    ```bash
+    docker build -t transformer-chatbot:v3 .
     ```
 
 2. 컨테이너 실행하기
@@ -162,8 +169,8 @@ URL: ```http://127.0.0.1:8000/chat/```
     옵션 A: Streamlit 웹 UI 실행 (기본값)
       Streamlit을 실행하려면 8501 포트를 연결합니다.
   
-    ```
-    docker run -d --name chatbot-ui -p 8501:8501 transformer-chatbot:v1
+    ```bash
+    docker run -d --name chatbot-ui -p 8501:8501 transformer-chatbot:v3
     ```
       👉 실행 후 브라우저에서 http://localhost:8501로 접속하세요.
 
@@ -172,10 +179,38 @@ URL: ```http://127.0.0.1:8000/chat/```
       
       포트는 `8000`을 연결합니다.
 
-    ```
-    docker run -d --name chatbot-api -p 8000:8000 transformer-chatbot:v1 uvicorn chatbot_api:app --host 0.0.0.0 --port 8000
+    ```bash
+    docker run -d --name chatbot-api -p 8000:8000 transformer-chatbot:v3 uvicorn chatbot_api:app --host 0.0.0.0 --port 8000
     ```
       👉 실행 후 브라우저에서 http://localhost:8000/docs로 접속하여 API를 테스트하세요.
+
+<br>
+
+# ☸️ Kubernetes (Minikube) Deployment
+
+로컬 도커 이미지를 활용하여 Kubernetes 클러스터에 컨테이너 오케스트레이션을 구성할 수 있습니다.
+
+1. Minikube 도커 환경 연결 및 이미지 빌드
+
+    ```bash
+    eval $(minikube docker-env)
+
+    docker build -t transformer-chatbot:v3 .
+    ```
+
+2. Kubernetes 리소스 적용 (`deployment.yaml`, `service.yaml`)
+
+    ```bash
+    kubectl apply -f deployment.yaml
+
+    kubectl apply -f service.yaml
+    ```
+
+3. 서비스 노출 및 접속 (NodePort 활용)
+
+    ```bash
+    minikube service chatbot-ui-service
+    ```
 
 <br>
 
@@ -201,16 +236,8 @@ URL: ```http://127.0.0.1:8000/chat/```
 
 # 💡 Future Work (향후 추가 및 개선 계획)
 
-본 프로젝트는 기본적인 챗봇 기능 구현 이후, 사용자 편의성 및 운영 환경 안정화를 위해 다음과 같은 업데이트를 계획하고 있습니다.
+본 프로젝트는 기본적인 챗봇 기능 구현 이후, 대화 품질 향상 및 모델 세밀 조정을 위해 다음과 같은 업데이트를 계획하고 있습니다.
 
-- Streamlit UI 확장 (`sidebar.py`)
+- 모델 추론 로직(Inference) 개선
 
-  대화 내역 다운로드(Export Chat) 기능 추가
-
-  답변의 다양성 및 창의성을 제어할 수 있는 확률적 샘플링(Temperature, Top-K) 파라미터 조절 UI 도입
-
-- Kubernetes (Minikube) 배포 파이프라인 완성
-
-  로컬 Docker 이미지를 활용한 컨테이너 오케스트레이션 구성
-
-  `deployment.yaml` 및 `service.yaml`을 통한 Pod 스케일링 및 NodePort 네트워크 연결 테스트 진행
+  현재의 Greedy Search 방식을 보완하여, 답변의 다양성 및 창의성을 제어할 수 있는 확률적 샘플링(Temperature, Top-K) 파라미터 조절 UI 도입 및 평가(`evaluate`) 로직 수정

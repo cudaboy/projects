@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatbot-ui-deployment
+  labels:
+    app: chatbot-ui
+spec:
+  replicas: 1  # 생성할 Pod의 개수 (로컬 리소스를 고려해 1개로 설정)
+  selector:
+    matchLabels:
+      app: chatbot-ui
+  template:
+    metadata:
+      labels:
+        app: chatbot-ui
+    spec:
+      containers:
+      - name: chatbot-ui-container
+        image: transformer-chatbot:v3  # 방금 전 빌드한 로컬 이미지 이름
+        imagePullPolicy: Never         # 중요: 외부에서 이미지를 다운받지 않고 로컬 이미지만 사용
+        ports:
+        - containerPort: 8501          # Streamlit 컨테이너 포트
+        resources:
+          limits:
+            memory: "2Gi"              # PyTorch 모델 크기를 고려한 메모리 제한
+            cpu: "1000m"
