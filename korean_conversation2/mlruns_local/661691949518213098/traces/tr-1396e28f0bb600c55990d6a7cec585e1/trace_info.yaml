@@ -1,0 +1,10 @@
+execution_duration_ms: 223
+request_preview: '"짜장면 한그릇 얼마에요?"'
+request_time: '2026-03-15T16:18:43.189Z'
+response_preview: '"한판##에만사##천원##이##에##요"'
+state: OK
+trace_id: tr-1396e28f0bb600c55990d6a7cec585e1
+trace_location:
+  mlflow_experiment:
+    experiment_id: '661691949518213098'
+  type: MLFLOW_EXPERIMENT

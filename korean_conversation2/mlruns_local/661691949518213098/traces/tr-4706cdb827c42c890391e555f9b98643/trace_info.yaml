@@ -1,0 +1,10 @@
+execution_duration_ms: 229
+request_preview: '"쟁반짜장 한 판 얼마에요?"'
+request_time: '2026-03-15T16:24:52.506Z'
+response_preview: '"이 제품은 삼만 원이에요"'
+state: OK
+trace_id: tr-4706cdb827c42c890391e555f9b98643
+trace_location:
+  mlflow_experiment:
+    experiment_id: '661691949518213098'
+  type: MLFLOW_EXPERIMENT

@@ -1,0 +1,10 @@
+execution_duration_ms: 191
+request_preview: '"피자 한판 얼마에요?"'
+request_time: '2026-03-15T16:18:53.198Z'
+response_preview: '"네,그렇게해##드##릴##게요"'
+state: OK
+trace_id: tr-812c8c685fb875d5ad63575e9ef06bc9
+trace_location:
+  mlflow_experiment:
+    experiment_id: '661691949518213098'
+  type: MLFLOW_EXPERIMENT

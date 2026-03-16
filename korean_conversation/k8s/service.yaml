@@ -1,13 +1,31 @@
+# 쿠버네티스 API 버전과 자원 종류(Service)를 명시합니다.
 apiVersion: v1
 kind: Service
+
 metadata:
-  name: chatbot-ui-service
+  name: rag-chatbot-service
+
+# 서비스 설정(Spec)입니다.
 spec:
+  # 💡 type: NodePort
+  # 클러스터(Minikube) 외부에서 내 PC의 브라우저로 접속할 수 있게 포트를 개방하는 방식입니다.
   type: NodePort
+  
+  # 어떤 파드들에게 트래픽을 보낼지 타겟을 지정합니다. (Deployment에서 붙인 이름표와 일치해야 합니다)
   selector:
-    app: chatbot-ui
+    app: rag-chatbot
+    
+  # 포트(Port) 연결 설정입니다. 
+  # 백엔드는 컨테이너 내부 통신용으로 쓰이고, 사용자는 프론트엔드(Streamlit) 화면만 보면 되므로 8501번 포트를 연결합니다.
   ports:
     - protocol: TCP
-      port: 8501        # 서비스가 노출할 포트
-      targetPort: 8501  # 연결될 컨테이너의 포트
-      nodePort: 30501   # 외부에서 접속할 때 사용할 포트 (30000~32767 사이)
+      # Service 자체가 클러스터 내부에서 가지는 포트입니다.
+      port: 8501
+      
+      # 트래픽을 실제로 전달할 파드(컨테이너) 내부의 포트입니다. (Streamlit 포트)
+      targetPort: 8501
+      
+      # 💡 nodePort: 30501
+      # 사용자가 웹 브라우저 주소창에 직접 치고 들어올 외부 접속용 포트 번호입니다.
+      # (30000 ~ 32767 사이의 숫자만 가능합니다.)
+      nodePort: 30501

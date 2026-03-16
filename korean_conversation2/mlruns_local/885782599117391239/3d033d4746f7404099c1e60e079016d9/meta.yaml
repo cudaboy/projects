@@ -1,0 +1,14 @@
+artifact_uri: file:///kaggle/working/mlruns/885782599117391239/3d033d4746f7404099c1e60e079016d9/artifacts
+end_time: 1773588489218
+entry_point_name: ''
+experiment_id: '885782599117391239'
+lifecycle_stage: active
+run_id: 3d033d4746f7404099c1e60e079016d9
+run_name: Optuna_Optimization_Search
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1773585330951
+status: 3
+tags: []
+user_id: root

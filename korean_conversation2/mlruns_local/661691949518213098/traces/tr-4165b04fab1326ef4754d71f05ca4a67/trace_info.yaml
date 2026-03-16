@@ -1,0 +1,10 @@
+execution_duration_ms: 221
+request_preview: '"짜장면 한 그릇 얼마에요?"'
+request_time: '2026-03-15T16:24:41.343Z'
+response_preview: '"한 판에 만사천 원이에요"'
+state: OK
+trace_id: tr-4165b04fab1326ef4754d71f05ca4a67
+trace_location:
+  mlflow_experiment:
+    experiment_id: '661691949518213098'
+  type: MLFLOW_EXPERIMENT

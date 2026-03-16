@@ -1,26 +1,43 @@
+# 쿠버네티스 API 버전과 생성할 자원의 종류(Deployment)를 명시합니다.
 apiVersion: apps/v1
 kind: Deployment
+
+# 이 Deployment의 이름 등 메타데이터를 설정합니다.
 metadata:
-  name: chatbot-ui-deployment
+  name: rag-chatbot-deployment
   labels:
-    app: chatbot-ui
+    app: rag-chatbot
+
+# 본격적인 배포 설정(Spec)입니다.
 spec:
-  replicas: 1  # 생성할 Pod의 개수 (로컬 리소스를 고려해 1개로 설정)
+  # 💡 replicas: 똑같은 챗봇 서버(컨테이너)를 동시에 2개 띄우라는 뜻입니다.
+  # 한쪽에 트래픽이 몰리거나 하나가 죽어도 다른 하나가 서비스를 계속 유지하게 해주는 핵심 설정입니다.
+  replicas: 2
+  
+  # 어떤 파드(Pod)들을 이 Deployment가 관리할지 이름표(Label)로 지정합니다.
   selector:
     matchLabels:
-      app: chatbot-ui
+      app: rag-chatbot
+      
+  # 💡 template: 실제로 띄울 파드(Pod, 쿠버네티스의 최소 실행 단위)의 모양을 정의합니다.
   template:
     metadata:
       labels:
-        app: chatbot-ui
+        app: rag-chatbot # 이 이름표가 붙은 파드들이 생성됩니다.
     spec:
+      # 파드 안에 들어갈 컨테이너들의 설정입니다.
       containers:
-      - name: chatbot-ui-container
-        image: transformer-chatbot:v3  # 방금 전 빌드한 로컬 이미지 이름
-        imagePullPolicy: Never         # 중요: 외부에서 이미지를 다운받지 않고 로컬 이미지만 사용
+      - name: rag-chatbot-container
+        # 💡 아까 로컬(Minikube)에서 빌드했던 도커 이미지의 이름을 정확히 적어줍니다.
+        image: transformer-chatbot:v3
+        imagePullPolicy: Never
+        
+        # 💡 imagePullPolicy: Never 
+        # 쿠버네티스가 인터넷(Docker Hub)에서 이미지를 찾지 않고, 
+        # Minikube 내부에 방금 우리가 구운 로컬 이미지를 바로 사용하도록 강제하는 매우 중요한 옵션입니다.
+        imagePullPolicy: Never
+        
+        # 컨테이너 내부에서 열어둘 포트를 지정합니다.
         ports:
-        - containerPort: 8501          # Streamlit 컨테이너 포트
-        resources:
-          limits:
-            memory: "2Gi"              # PyTorch 모델 크기를 고려한 메모리 제한
-            cpu: "1000m"
+        - containerPort: 8000 # FastAPI 백엔드 포트
+        - containerPort: 8501 # Streamlit 프론트엔드 포트

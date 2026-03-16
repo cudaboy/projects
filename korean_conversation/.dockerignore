@@ -1,0 +1,22 @@
+# 파이썬 캐시 파일 및 가상환경 
+__pycache__/
+*.pyc
+venv/
+env/
+.env
+
+# Jupyter Notebook 파일 및 데이터 백업 (무거운 파일 차단)
+.ipynb_checkpoints/
+*.ipynb
+data/
+mlruns_local/
+
+# 로그 파일 (서버가 구동되면서 새로 쌓아야 하므로 기존 로그는 제외)
+logs/
+
+# 깃(Git) 관련 파일
+.git/
+.gitignore
+
+# 💡 주의: rag_db 폴더와 transformer_best.pth 파일은 
+# 챗봇 구동에 필수적이므로 절대 이 목록에 쓰면 안 됩니다!
