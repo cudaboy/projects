@@ -1,7 +1,0 @@
-artifact_location: file:///C:/python/11주차/korean_conversation/mlruns_local/661691949518213098
-creation_time: 1773591447910
-experiment_id: '661691949518213098'
-last_update_time: 1773591447910
-lifecycle_stage: active
-name: RAG_FastAPI_Serving
-workspace: default
