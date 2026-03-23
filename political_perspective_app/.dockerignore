@@ -1,0 +1,32 @@
+# 1. 가상환경 및 캐시 파일 (용량 낭비 방지)
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# 2. 데이터베이스 파일 (초기화 충돌 방지)
+*.db
+*.sqlite3
+spectrum.db
+backend/spectrum.db
+
+# 3. 환경 변수 및 보안 파일 (절대 이미지에 구워지면 안 됨!)
+.env
+.env.*
+
+# 4. 개발 도구 및 IDE 설정 파일
+.vscode/
+.idea/
+.git/
+.gitignore
+
+# 5. 인프라 설계도 및 문서 (컨테이너 내부에서는 필요 없음)
+k8s/
+docker-compose.yml
+*.Dockerfile
+README.md
+# requirements.txt  # (옵션) 빌드 과정에서 쓰지만 최종 실행엔 불필요할 수 있음. 단, 빌드 컨텍스트에서는 필요하므로 제외하지 않는 것이 안전합니다. -> 이 줄은 지우거나 주석 처리 유지.

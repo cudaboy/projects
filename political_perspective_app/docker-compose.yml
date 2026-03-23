@@ -1,0 +1,34 @@
+# docker-compose.yml : 두 서버를 한 번에 묶어주는 실행 파일
+
+version: '3.8'
+
+services:
+  backend:
+    image: spectrum-backend:latest
+    build:
+      context: .
+      dockerfile: backend.Dockerfile
+    container_name: spectrum_backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env  # API 키 및 환경 변수 주입
+    volumes:
+      # 컨테이너가 꺼져도 DB 데이터가 날아가지 않도록 로컬과 동기화
+      - ./backend/spectrum.db:/app/backend/spectrum.db
+    restart: always
+
+  frontend:
+    image: spectrum-frontend:latest
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+    container_name: spectrum_frontend
+    ports:
+      - "8501:8501"
+    environment:
+      # Docker 내부 네트워크망을 통해 프론트가 백엔드를 찾도록 URL 주입
+      - BACKEND_API_URL=http://backend:8000/analyze
+    depends_on:
+      - backend
+    restart: always

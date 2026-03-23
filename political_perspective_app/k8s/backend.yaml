@@ -1,0 +1,34 @@
+# backend.yaml : 백엔드 배포 및 네트워크 연결
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spectrum-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spectrum-backend
+  template:
+    metadata:
+      labels:
+        app: spectrum-backend
+    spec:
+      containers:
+      - name: backend
+        image: spectrum-backend:latest
+        imagePullPolicy: Never # Minikube 로컬에 빌드된 이미지 사용
+        ports:
+        - containerPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+spec:
+  selector:
+    app: spectrum-backend
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
