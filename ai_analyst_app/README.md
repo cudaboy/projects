@@ -83,35 +83,35 @@
 
 - **LangGraph 기반 전문가 협업 시스템 🤝**
 
-  CFO 에이전트: 재무제표를 스크래핑하여 회사의 펀더멘털을 정밀 진단합니다.
+  1. CFO 에이전트: 재무제표를 스크래핑하여 회사의 펀더멘털을 정밀 진단합니다.
 
-  ![CFO 분석 화면](./assets/CFO_agent.png)
+      ![CFO 분석 화면](./assets/CFO_agent.png)
 
-  Analyst 에이전트: 네이버 뉴스 API와 DuckDuckGo를 활용해 최신 모멘텀을 분석합니다.
+  2. Analyst 에이전트: 네이버 뉴스 API와 DuckDuckGo를 활용해 최신 모멘텀을 분석합니다.
 
-  ![Analyst 분석 화면](./assets/Analyst_agent.png)
+      ![Analyst 분석 화면](./assets/Analyst_agent.png)
 
-  Trader 에이전트: 기술적 지표와 차트 데이터를 분석하여 진입 시점을 제안합니다.
+  3. Trader 에이전트: 기술적 지표와 차트 데이터를 분석하여 진입 시점을 제안합니다.
 
-  ![Trader 분석 화면](./assets/Trader_agent.png)
+      ![Trader 분석 화면](./assets/Trader_agent.png)
 
-  Fund Manager 에이전트: 모든 데이터를 취합하여 최종 투자 의견 리포트를 생성합니다.
+  4. Fund Manager 에이전트: 모든 데이터를 취합하여 최종 투자 의견 리포트를 생성합니다.
 
-  ![Fund Manager 분석 화면](./assets/FundManager_agent.png)
+      ![Fund Manager 분석 화면](./assets/FundManager_agent.png)
 
 <br>
 
 - **LangSmith 기반 실시간 에이전트 모니터링 및 디버깅 🛠️**
 
-  사고 과정의 투명성 확보: 복잡한 LangGraph 워크플로우 내에서 각 에이전트(CFO, Analyst, Trader 등)가 어떤 도구를 선택하고, 어떤 논리적 단계를 거쳐 결론에 도달하는지 전체 추론 과정을 실시간 트레이싱(Tracing)으로 시각화합니다.
+  1. 사고 과정의 투명성 확보: 복잡한 LangGraph 워크플로우 내에서 각 에이전트(CFO, Analyst, Trader 등)가 어떤 도구를 선택하고, 어떤 논리적 단계를 거쳐 결론에 도달하는지 전체 추론 과정을 실시간 트레이싱(Tracing)으로 시각화합니다.
 
-  ![LangSmith Dashboard](./assets/langsmith_dashboard.png)
+      ![LangSmith Dashboard](./assets/langsmith_dashboard.png)
 
-  동적 관측성 제어 (On-Off): 서버 코드 수정 없이 프론트엔드 사이드바에서 LangSmith 추적 기능을 즉각적으로 활성화하거나 비활성화할 수 있으며, 사용자별 API 키를 동적으로 주입하여 독립적인 디버깅 환경을 제공합니다.
+  2. 동적 관측성 제어 (On-Off): 서버 코드 수정 없이 프론트엔드 사이드바에서 LangSmith 추적 기능을 즉각적으로 활성화하거나 비활성화할 수 있으며, 사용자별 API 키를 동적으로 주입하여 독립적인 디버깅 환경을 제공합니다.
 
-  ![LangSmith Checkbox](./assets/dynamic_langsmith.png)
+      ![LangSmith Checkbox](./assets/dynamic_langsmith.png)
 
-  성능 최적화 및 에러 트래킹: LLM 호출의 지연 시간(Latency), 토큰 소모량, 그리고 도구 호출 시 발생하는 예외 상황을 즉각적으로 파악하여 분석 파이프라인의 안정성을 고도화하고 비용을 효율적으로 관리합니다.
+  3. 성능 최적화 및 에러 트래킹: LLM 호출의 지연 시간(Latency), 토큰 소모량, 그리고 도구 호출 시 발생하는 예외 상황을 즉각적으로 파악하여 분석 파이프라인의 안정성을 고도화하고 비용을 효율적으로 관리합니다.
 
 <br>
 
@@ -123,19 +123,21 @@
 
 - **Multi-LLM 동적 스위칭 및 모니터링 🧠**
 
-  프론트엔드에서 GPT-4o, Claude 3.5, Gemini 1.5 Pro 등 최신 모델을 실시간으로 교체하며 분석 품질을 비교할 수 있습니다.
+  1. 프론트엔드에서 GPT-4o, Claude 3.5, Gemini 1.5 Pro 등 최신 모델을 실시간으로 교체하며 분석 품질을 비교할 수 있습니다.
 
-  ![LLM Model Selection](./assets/model_setting.png)
+      ![LLM Model Selection](./assets/model_setting.png)
 
-  LangSmith 연동을 UI에서 온오프(On-Off) 할 수 있어 에이전트의 사고 과정을 실시간 모니터링 가능합니다.
+  2. LangSmith 연동을 UI에서 온오프(On-Off) 할 수 있어 에이전트의 사고 과정을 실시간 모니터링 가능합니다.
 
 <br>
 
 - **데이터 보존 및 히스토리 관리 📊**
 
-  SQLite와 SQLAlchemy를 연동하여 모든 분석 결과를 DB에 영구 저장합니다.
+  1. SQLite와 SQLAlchemy를 연동하여 모든 분석 결과를 DB에 영구 저장합니다.
 
-  별도의 히스토리 페이지를 통해 과거에 분석했던 종목의 상세 리포트를 언제든 다시 열람할 수 있습니다.
+  2. 별도의 히스토리 페이지를 통해 과거에 분석했던 종목의 상세 리포트를 언제든 다시 열람할 수 있습니다.
+
+      ![History](./assets/history.png)
 
 <br>
 
