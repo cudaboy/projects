@@ -2,19 +2,24 @@ import streamlit as st
 import re
 
 def render_fund_manager_report(report_text: str):
-    """
-    총괄 펀드매니저의 최종 리포트를 눈에 띄게 렌더링합니다.
-    (매수/관망/매도 의견을 시각적으로 강조)
-    """
     st.markdown("---")
     
-    # 정규식을 통해 Buy / Hold / Sell 키워드가 있으면 태그 형태로 강조
-    if re.search(r'(?i)\b(buy|매수)\b', report_text):
-        st.success("🎯 **최종 투자의견: BUY (매수)**")
-    elif re.search(r'(?i)\b(sell|매도)\b', report_text):
-        st.error("⚠️ **최종 투자의견: SELL (매도)**")
-    elif re.search(r'(?i)\b(hold|관망)\b', report_text):
-        st.warning("⚖️ **최종 투자의견: HOLD (관망)**")
+    # '최종 투자의견:' 또는 '최종 투자 의견:' 뒤에 나오는 단어 그룹을 추출하는 정규식
+    match = re.search(r'최종\s*투자\s*의견\s*:\s*(.*)', report_text, re.IGNORECASE)
+    
+    if match:
+        verdict = match.group(1).upper()
+        if "BUY" in verdict or "매수" in verdict:
+            st.success("🎯 **최종 투자의견: BUY (매수)**")
+        elif "SELL" in verdict or "매도" in verdict:
+            st.error("⚠️ **최종 투자의견: SELL (매도)**")
+        elif "HOLD" in verdict or "관망" in verdict:
+            st.warning("⚖️ **최종 투자의견: HOLD (관망)**")
+        else:
+            st.info(f"💡 **최종 투자의견: {match.group(1)}**") # 예외적인 단어일 경우
+    else:
+        # 혹시라도 양식에 안 맞춰서 출력했을 경우를 대비한 기본값
+        st.info("💡 **최종 투자의견: 본문 참조**")
         
     # 본문 내용을 깔끔한 박스 안에 배치
     with st.container(border=True):
