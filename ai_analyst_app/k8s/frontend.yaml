@@ -1,0 +1,44 @@
+---
+# 1. Frontend Deployment (애플리케이션 배포)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-analyst-frontend
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend-container
+          # 위에서 빌드한 프론트엔드 이미지명
+          image: ai-analyst-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8501
+          env:
+            # 프론트엔드가 백엔드를 찾을 수 있도록 K8s DNS(Service Name)를 주소로 지정
+            - name: API_BASE_URL
+              value: "http://backend-service:8000/api/v1"
+
+---
+# 2. Frontend Service (외부 네트워크 개방)
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+spec:
+  type: LoadBalancer # 클라우드(AWS, GCP) 환경에서는 외부 IP 할당, Minikube에서는 NodePort처럼 동작
+  selector:
+    app: frontend
+  ports:
+    - protocol: TCP
+      port: 8501        # 외부에서 접속할 포트
+      targetPort: 8501  # 컨테이너 내부 포트
