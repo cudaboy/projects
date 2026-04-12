@@ -43,7 +43,7 @@ def main():
         print("🚀 하이퍼파라미터 튜닝 스크립트(scripts/tune.py)를 실행합니다...")
         # tune.py는 내부적으로 os.system 등으로 호출하도록 구성하거나 직접 import 처리
         import scripts.tune as tune
-        # ... (튜닝 실행 로직) ...
+        tune.main()
 
 if __name__ == "__main__":
     main()
