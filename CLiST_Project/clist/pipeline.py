@@ -1,3 +1,38 @@
+"""
+=============================================================================================
+[Inference Pipeline Module] CLiST Integrated API Wrapper
+=============================================================================================
+
+1. 개요 및 목적 (Overview)
+본 모듈은 CLiST(Multimodal Time-Frequency Fusion Network) 모델의 실시간 추론(Inference)을 
+담당하는 '통합 파이프라인 래퍼(Wrapper)' 클래스를 정의합니다.
+데이터 엔지니어나 외부 시스템(FastAPI 서버, 공장 제어 대시보드 등) 개발자가 
+복잡한 PyTorch 로직이나 전처리 과정을 알 필요 없이, 오직 파일 경로만 전달하여 
+즉각적인 위험도 판정 결과를 얻을 수 있도록 사용자 친화적인 인터페이스를 제공합니다.
+
+2. 주요 역할 및 로직 (Core Responsibilities)
+  A. 원터치 초기화 (Auto Initialization):
+     - 모델 아키텍처 로드, 학습된 가중치(.pth) 주입, GPU/CPU 환경 자동 할당을 한 번에 수행합니다.
+     - 학습 시 사용된 글로벌 통계량(`domain_stats.json`)을 자동으로 불러와 추론의 정확성을 보장합니다.
+
+  B. 실시간 멀티모달 전처리 (Real-time Preprocessing):
+     - `_preprocess_sensor`: 1D 센서 CSV 파일의 결측치를 방어적으로 보간(ffill, bfill)하고 
+       Z-Score 정규화를 적용하여 (Batch=1, Seq=1, Features=24) 텐서로 변환합니다.
+     - `_preprocess_vision`: 2D 열화상 BIN 파일을 읽어 Min-Max 스케일링을 수행하고, 
+       Swin Transformer 입력 규격에 맞춰 3채널 복제 및 224x224 리사이즈를 적용합니다.
+
+  C. 직관적인 결과 포맷팅 (User-Friendly Output):
+     - 텐서 형태의 모델 출력값(Logits)을 Softmax 함수를 통해 확률(%)로 변환합니다.
+     - 최종 예측 클래스와 신뢰도(Confidence), 전체 클래스별 확률 분포를 
+       JSON 형태(Dictionary)로 깔끔하게 포장하여 반환합니다.
+
+3. 사용 예시 (Usage Example)
+    pipeline = CLiSTPipeline(weight_path='weights/best_model.pth')
+    result = pipeline.predict(sensor_csv_path='sensor.csv', vision_bin_path='vision.bin')
+    print(result['predicted_status']) # "Danger(위험)"
+=============================================================================================
+"""
+
 import torch
 import pandas as pd
 import numpy as np
