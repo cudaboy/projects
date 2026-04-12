@@ -1,6 +1,6 @@
 """
 =============================================================================================
-[Orchestrator Module] CLiST Main Training Pipeline (1-GPU Optimized Ver.)
+[Orchestrator Module] CLiST Main Training Pipeline
 =============================================================================================
 
 1. 기능 및 목적 (Overview)
@@ -9,9 +9,9 @@
 현업 MLOps 표준인 MLflow를 통해 모든 실험 과정과 결과물을 자동으로 기록합니다.
 
 2. 적용된 핵심 최적화 기술 (Core Technologies)
-  A. 단일 GPU 풀악셀 (I/O Bottleneck 해소):
-     - 분산 학습의 통신 오버헤드를 제거하고 8명의 데이터 워커(Workers)를 풀가동하여
-       무거운 열화상 이미지 데이터를 GPU에 초고속으로 끊임없이 밀어 넣습니다.
+  A. 데이터 로딩 병목(I/O Bottleneck) 해소를 통한 단일 GPU 학습 효율 최적화:
+     - 분산 학습 시 발생하는 통신 오버헤드를 배제하고, 멀티 프로세싱(8 Workers) 기반의 데이터 프리페칭(Pre-fetching)을 통해
+       고해상도 열화상 이미지 데이터의 공급 속도를 GPU 연산 속도에 동기화하였습니다.
   B. 혼합 정밀도 학습 (Native AMP):
      - PyTorch Native GradScaler를 활용하여 FP16 연산을 수행, VRAM을 절약하고 속도를 극대화합니다.
   C. MLOps 트래킹 (MLflow) & 스마트 로깅:
