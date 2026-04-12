@@ -1,6 +1,6 @@
 # 🏭 CLiST: Cross-modal Late-fusion integrated Sensor & Thermal network
 
-![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
+![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.11.0-EE4C2C.svg)
 ![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)
 ![Docker](https://img.shields.io/badge/Docker-Supported-2496ED.svg)
@@ -133,7 +133,7 @@ CLiST_Project               # 📦 배포용 최상위 루트 폴더
 
 본 모델의 가중치 파일은 용량 문제로 GitHub에 포함되어 있지 않습니다. 아래 Hugging Face 링크에서 파일을 다운로드하여 `weights/` 폴더 안에 넣어주세요.
 
-* [Hugging Face Model Hub 링크 (https://huggingface.co/muckja999/clist-predictive-maintenance)](#)
+* [Hugging Face Model Hub 링크](https://huggingface.co/muckja999/clist-predictive-maintenance)
     * 다운로드 파일 1: `best_clist_model.pth` (모델 가중치)
     * 다운로드 파일 2: `domain_stats.json` (정규화 통계량)
 
