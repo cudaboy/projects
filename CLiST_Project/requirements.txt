@@ -1,0 +1,20 @@
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+# --- Deep Learning Core (버전 완벽 매칭) ---
+torch==2.11.0+cu128
+torchvision==0.26.0+cu128
+
+# --- Data Processing & Machine Learning ---
+numpy==2.4.4
+pandas==2.3.3
+scikit-learn==1.8.0
+
+# --- MLOps & Tuning ---
+mlflow==3.11.1
+optuna==4.8.0
+optuna-integration[mlflow]==4.8.0
+
+# --- Visualization & Utilities ---
+matplotlib==3.10.8
+seaborn==0.13.2
+tqdm==4.67.3
