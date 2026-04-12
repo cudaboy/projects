@@ -1,3 +1,33 @@
+"""
+=============================================================================================
+[CLI Entry Point] CLiST Project Main Command Line Interface (run.py)
+=============================================================================================
+
+1. 개요 및 목적 (Overview)
+본 모듈은 CLiST(Multimodal Time-Frequency Fusion Network) 프로젝트의 '중앙 진입점(Entry Point)'입니다.
+사용자나 외부 시스템(공장 제어 서버 등)이 복잡한 내부 로직이나 파이썬 모듈 구조를 알 필요 없이,
+오직 터미널 명령어 한 줄만으로 모델의 핵심 기능(추론, 학습, 튜닝)을 손쉽게 실행할 수 있도록 
+직관적인 CLI(Command Line Interface) 환경을 제공합니다.
+
+2. 주요 모드 및 라우팅 (Supported Modes)
+  A. Predict (예측 모드)
+     - 역할: 사전 학습된 가중치(.pth)를 로드하고, 새로운 센서/비전 데이터를 입력받아 즉각적인 위험도를 판정합니다.
+     - 특징: `pipeline.py`의 통합 Wrapper를 호출하여 실시간 추론 서비스에 최적화되어 있습니다.
+     
+  B. Train (학습 모드)
+     - 역할: `scripts/train.py`를 호출하여 전체 데이터셋을 바탕으로 모델의 본 학습을 진행합니다.
+     - 특징: MLflow 트래킹 및 혼합 정밀도(AMP) 학습이 자동으로 연동됩니다.
+     
+  C. Tune (하이퍼파라미터 튜닝 모드)
+     - 역할: `scripts/tune.py`를 호출하여 Optuna 프레임워크 기반의 최적 파라미터 탐색을 수행합니다.
+
+3. 사용 예시 (Usage Examples)
+  - [Predict] : python run.py --mode predict --sensor data/sensor.csv --vision data/thermal.bin
+  - [Train]   : python run.py --mode train
+  - [Tune]    : python run.py --mode tune
+=============================================================================================
+"""
+
 import argparse
 import json
 from clist.pipeline import CLiSTPipeline
