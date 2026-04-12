@@ -1,6 +1,6 @@
 # 🏭 CLiST: Cross-modal Late-fusion integrated Sensor & Thermal network
 
-![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
+![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.11.0-EE4C2C.svg)
 ![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)
 ![Docker](https://img.shields.io/badge/Docker-Supported-2496ED.svg)
