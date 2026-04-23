@@ -1,0 +1,24 @@
+# 원본 데이터셋 및 빌드된 데이터베이스 (빌드 시 포함하지 않음)
+data/01.원천데이터/
+data/02.라벨링데이터/
+data/chroma_db/
+data/processed/
+data/knowledge_graph.gml
+data/chat_history.json
+
+# 캐시 및 임시 파일
+__pycache__/
+*.pyc
+.cache/
+.uv/
+
+# 실험 기록 및 가상환경, 환경변수
+mlruns/
+mlflow.db
+.venv/
+venv/
+.env
+
+# 깃(Git) 관련 파일
+.git/
+.gitignore

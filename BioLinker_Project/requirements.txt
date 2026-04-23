@@ -1,0 +1,37 @@
+# ==========================================
+# BioLinker Project Requirements
+# ==========================================
+
+# 1. Core & Data Processing
+python-dotenv>=1.0.0
+pandas>=2.0.0
+requests>=2.31.0
+
+# 2. AI & Agent Framework (LangChain / LangGraph)
+langchain==1.2.15          
+langchain-openai==1.1.15   
+langchain-anthropic==1.4.1
+langchain-google-genai==4.2.2
+langchain-community==0.4.1 
+langchain-core==1.3.0      
+langgraph==1.1.9          
+openai>=1.14.0
+langchain-huggingface>=0.1.0
+sentence-transformers>=2.5.0
+transformers>=4.38.0
+
+# 3. Hybrid Database (Vector DB & Graph DB)
+chromadb>=0.4.24
+networkx>=3.0
+
+# 4. Backend API (FastAPI)
+fastapi>=0.110.0
+uvicorn>=0.27.0
+pydantic>=2.6.0
+
+# 5. Frontend UI (Streamlit)
+streamlit>=1.32.0
+
+# 6. Evaluation & Metrics (Ragas)
+ragas>=0.1.0
+datasets>=2.16.0
