@@ -1,98 +1,269 @@
 """
-===============================================================================
-[File Role]
-이 파일(api.py)은 BioLinker 프로젝트의 '백엔드 API 서버(Backend API Server)' 역할을 담당합니다.
+BioLinker FastAPI backend.
 
-[상세 설명]
-1. 멀티 LLM 동적 수용: 프론트엔드에서 사용자가 입력한 API Key와 선택한 모델(OpenAI, Anthropic, Google, Grok)을 
-   전달받아 실시간으로 해당 LLM 객체를 생성하고 에이전트 워크플로우에 주입합니다.
-2. 하이브리드 리소스 관리: 
-   - 서버 시작 시(Startup): 로컬 임베딩 모델(ModernBERT)과 벡터 DB를 메모리에 1회 로드합니다. (약 14분 소요)
-   - 쿼리 요청 시(Request): 전달받은 인증 정보를 바탕으로 추론용 LLM을 즉석에서 구성하여 답변을 합성합니다.
-3. 보안 및 관찰성: 사용자의 API 키가 서버 로그에 남지 않도록 주의하며, 선택적으로 LangSmith 추적을 활성화합니다.
-===============================================================================
+개선 사항
+- /health/live, /health/ready 분리
+- request_id / latency / structured response 추가
+- retrieval_mode / top_k 실험 파라미터 지원
+- startup readiness 상태 추적
 """
 
-import os
+from __future__ import annotations
+
 import logging
+import os
+import subprocess
+import time
+import uuid
+from typing import Any, List, Optional
+
+from dotenv import dotenv_values
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from langchain_core.runnables import RunnableLambda
 
-# BioLinker 코어 모듈 임포트
 try:
     from biolinker.database import BioDatabaseManager
     from biolinker.agents import BioAgentManager
     from biolinker.workflow import create_workflow
+    from biolinker import config
 except ImportError:
     import sys
     from pathlib import Path
-    # 프로젝트 루트 경로를 sys.path에 추가하여 모듈 참조 해결
+
     sys.path.append(str(Path(__file__).resolve().parent.parent))
     from biolinker.database import BioDatabaseManager
     from biolinker.agents import BioAgentManager
     from biolinker.workflow import create_workflow
+    from biolinker import config
 
-# LangChain 기반 LLM 클래스들
-from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 
-# 로깅 설정
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("biolinker.api")
 
-# ---------------------------------------------------------
-# 1. API 입출력 데이터 스키마 (Schema)
-# ---------------------------------------------------------
+
 class QueryRequest(BaseModel):
-    """프론트엔드(main.py)로부터 전달받는 요청 규격"""
     question: str
-    provider: str  # openai, anthropic, google, grok
+    provider: str
     model_name: str
-    api_key: str
+    api_key: str = ""
+    auth_mode: str = Field(default="api_key", description="api_key, env, hermes_openai_key, oauth 중 하나")
     use_langsmith: bool = False
     langsmith_api_key: Optional[str] = ""
+    retrieval_mode: str = Field(default=config.DEFAULT_RETRIEVAL_MODE)
+    top_k: int = Field(default=config.DEFAULT_TOP_K, ge=1, le=20)
+    session_id: Optional[str] = None
+
+
+class Citation(BaseModel):
+    doc_id: str
+    title: str
+    journal: str = ""
+    year: str = ""
+    score: float = 0.0
+    chunk_id: str = ""
+
+
+class GraphEdge(BaseModel):
+    source: str = ""
+    subject: str
+    object: str
+    relation: str
+    doc_id: str = ""
+    journal: str = ""
+    year: str = ""
+    evidence_text: str = ""
+    confidence: str = ""
+    hop: int = 1
+
 
 class QueryResponse(BaseModel):
-    """프론트엔드로 반환하는 결과 규격"""
+    request_id: str
     question: str
     route: str
+    route_confidence: float = 0.0
     final_answer: str
+    citations: List[Citation] = []
+    retrieved_doc_ids: List[str] = []
+    graph_edges: List[GraphEdge] = []
     logs: List[str] = []
+    latency_ms: float = 0.0
+    safety_flag: str = "ok"
+    no_answer_reason: str = ""
 
-# ---------------------------------------------------------
-# 2. FastAPI 초기화 및 글로벌 상태 관리
-# ---------------------------------------------------------
+
 app = FastAPI(
-    title="BioLinker API (Dynamic LLM Mode)",
+    title="BioLinker API (Production-Ready Hybrid RAG)",
     description="사용자 인증 기반 멀티 LLM 하이브리드 RAG API",
-    version="1.2.0"
+    version="2.0.0",
 )
 
-# 무거운 로컬 리소스(Vector DB, Embedding)는 전역 변수로 관리하여 재사용
-db_manager = None
+db_manager: Optional[BioDatabaseManager] = None
+startup_error: Optional[str] = None
+startup_started_at: float = 0.0
+startup_completed_at: float = 0.0
+
 
 @app.on_event("startup")
 async def startup_event():
-    """서버 기동 시 로컬 임베딩 모델 및 DB 로드 (최초 1회 실행)"""
-    global db_manager
-    logging.info("🚀 BioLinker 백엔드 시작. 로컬 리소스 초기화 중 (ModernBERT 로딩 포함)...")
+    global db_manager, startup_error, startup_started_at, startup_completed_at
+    startup_started_at = time.time()
+    logger.info("🚀 BioLinker backend startup 시작")
     try:
-        # 이 과정에서 ModernBERT 모델을 메모리에 올리므로 사양에 따라 시간이 소요됩니다.
         db_manager = BioDatabaseManager()
-        logging.info("✅ 로컬 데이터베이스 및 임베딩 엔진 준비 완료.")
-    except Exception as e:
-        logging.error(f"❌ 시스템 초기화 실패: {e}")
-        raise e
+        startup_completed_at = time.time()
+        startup_error = None
+        logger.info("✅ 로컬 데이터베이스 및 임베딩 엔진 준비 완료")
+    except Exception as exc:
+        startup_error = str(exc)
+        logger.exception("❌ 시스템 초기화 실패: %s", exc)
 
-# ---------------------------------------------------------
-# 3. LLM 동적 생성 헬퍼 함수
-# ---------------------------------------------------------
+
+@app.get("/health/live", tags=["Health"])
+def health_live():
+    return {"status": "live", "uptime_ready": startup_completed_at > 0}
+
+
+@app.get("/health/ready", tags=["Health"])
+def health_ready():
+    if startup_error:
+        return {"status": "error", "ready": False, "error": startup_error}
+    return {
+        "status": "ready" if db_manager else "initializing",
+        "ready": db_manager is not None,
+        "embedding_model": config.EMBEDDING_MODEL,
+        "embedding_device": config.EMBEDDING_DEVICE,
+        "startup_seconds": round((startup_completed_at or time.time()) - startup_started_at, 3) if startup_started_at else None,
+    }
+
+
+@app.get("/", tags=["Health"])
+def health_check():
+    ready = db_manager is not None and not startup_error
+    return {"status": "running", "ready": ready, "local_db": "connected" if ready else "loading"}
+
+
+def _oauth_responses_invoke(model: str, access_token: str, input_value: Any, base_url: str = "https://api.openai.com/v1") -> str:
+    from openai import OpenAI
+
+    text = _prompt_value_to_text(input_value)
+    client = OpenAI(api_key=access_token, base_url=base_url)
+    response = client.responses.create(
+        model=model,
+        input=text,
+        temperature=0,
+    )
+    if getattr(response, "output_text", None):
+        return response.output_text
+    return str(response)
+
+
+def _prompt_value_to_text(value: Any) -> str:
+    if hasattr(value, "to_messages"):
+        parts = []
+        for msg in value.to_messages():
+            role = getattr(msg, "type", "message")
+            content = getattr(msg, "content", "")
+            parts.append(f"[{role}] {content}")
+        return "\n".join(parts)
+    if isinstance(value, list):
+        return "\n".join(str(item) for item in value)
+    return str(value)
+
+
+def _mask_secret(value: str) -> str:
+    if not value:
+        return "missing"
+    return f"set(len={len(value)}, prefix={value[:3]}...)"
+
+
+def _load_dotenv_key(path: str, key_name: str) -> str:
+    env_path = os.path.expanduser(path)
+    if not os.path.exists(env_path):
+        return ""
+    return str(dotenv_values(env_path).get(key_name) or "").strip()
+
+
+def _resolve_openai_api_key(request: QueryRequest) -> str:
+    """Resolve an OpenAI-compatible API key for development and production checks.
+
+    Precedence:
+    1. explicit request.api_key
+    2. process OPENAI_API_KEY
+    3. BioLinker project .env
+    4. Hermes biolinker profile .env
+    5. Hermes default .env
+    """
+    candidates = [
+        ("request.api_key", request.api_key),
+        ("process OPENAI_API_KEY", os.getenv("OPENAI_API_KEY", "")),
+        ("project .env OPENAI_API_KEY", _load_dotenv_key(str(config.BASE_DIR / ".env"), "OPENAI_API_KEY")),
+        ("biolinker profile .env OPENAI_API_KEY", _load_dotenv_key("~/.hermes/profiles/biolinker/.env", "OPENAI_API_KEY")),
+        ("hermes default .env OPENAI_API_KEY", _load_dotenv_key("~/.hermes/.env", "OPENAI_API_KEY")),
+    ]
+    for source, value in candidates:
+        key = str(value or "").strip()
+        if key:
+            logger.info("OpenAI API key resolved from %s: %s", source, _mask_secret(key))
+            return key
+    return ""
+
+
+def _run_hermes_json(script: str) -> dict:
+    """Run a tiny helper inside the Hermes checkout so OAuth tokens are resolved by Hermes itself."""
+    hermes_root = os.getenv("HERMES_AGENT_DIR", os.path.expanduser("~/.hermes/hermes-agent"))
+    result = subprocess.run(
+        ["python3", "-c", script],
+        cwd=hermes_root,
+        text=True,
+        capture_output=True,
+        timeout=60,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError((result.stderr or result.stdout or "Hermes OAuth helper failed").strip())
+    import json
+
+    return json.loads(result.stdout)
+
+
+def _resolve_hermes_openai_oauth_token() -> str:
+    script = r'''
+import json
+from agent.credential_pool import load_pool
+pool = load_pool("openai-codex")
+entry = None
+if hasattr(pool, "try_refresh_current"):
+    refreshed = pool.try_refresh_current()
+    entry = refreshed[0] if isinstance(refreshed, tuple) else refreshed
+if entry is None and hasattr(pool, "select"):
+    selected = pool.select()
+    entry = selected[0] if isinstance(selected, tuple) else selected
+if entry is None and hasattr(pool, "peek"):
+    entry = pool.peek()
+if entry is None and hasattr(pool, "current"):
+    entry = pool.current
+if entry is None and hasattr(pool, "entries"):
+    entries = list(pool.entries)
+    entry = entries[0] if entries else None
+if entry is None:
+    raise SystemExit("openai-codex OAuth credential not found. Run `hermes auth add openai-codex` or `hermes login --provider openai-codex`.")
+token = getattr(entry, "access_token", None) or getattr(entry, "runtime_api_key", None)
+if not token and isinstance(entry, dict):
+    token = entry.get("access_token") or entry.get("runtime_api_key")
+if not token:
+    raise SystemExit("openai-codex OAuth access token could not be resolved")
+print(json.dumps({"access_token": token}))
+'''
+    return _run_hermes_json(script)["access_token"]
+
+
 def get_dynamic_llm(request: QueryRequest):
-    """사용자가 UI에서 입력한 정보를 바탕으로 LangChain LLM 객체를 생성합니다."""
     provider = request.provider.lower()
-    
-    # LangSmith 모니터링 활성화 시 환경 변수 설정
+    auth_mode = (request.auth_mode or "api_key").lower()
     if request.use_langsmith and request.langsmith_api_key:
         os.environ["LANGCHAIN_TRACING_V2"] = "true"
         os.environ["LANGCHAIN_API_KEY"] = request.langsmith_api_key
@@ -100,83 +271,98 @@ def get_dynamic_llm(request: QueryRequest):
     else:
         os.environ["LANGCHAIN_TRACING_V2"] = "false"
 
-    try:
-        if provider == "openai":
-            return ChatOpenAI(
-                model=request.model_name,
-                openai_api_key=request.api_key,
-                temperature=0
-            )
-        elif provider == "anthropic":
-            return ChatAnthropic(
-                model=request.model_name,
-                anthropic_api_key=request.api_key,
-                temperature=0
-            )
-        elif provider == "google":
-            return ChatGoogleGenerativeAI(
-                model=request.model_name,
-                google_api_key=request.api_key,
-                temperature=0
-            )
-        elif provider == "grok":
-            # Grok(xAI)은 OpenAI 호환 API를 사용하므로 ChatOpenAI로 구성 가능
-            return ChatOpenAI(
-                model=request.model_name,
-                openai_api_key=request.api_key,
-                openai_api_base="https://api.x.ai/v1",
-                temperature=0
-            )
-        else:
-            raise ValueError(f"지원하지 않는 제공자입니다: {provider}")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"LLM 초기화 실패: {str(e)}")
+    if provider in {"openai-oauth", "openai_codex", "openai-codex"} or (provider == "openai" and auth_mode == "oauth"):
+        token = request.api_key or _resolve_hermes_openai_oauth_token()
+        return RunnableLambda(lambda input_value: _oauth_responses_invoke(request.model_name, token, input_value))
 
-# ---------------------------------------------------------
-# 4. API 엔드포인트
-# ---------------------------------------------------------
-@app.get("/", tags=["Health"])
-def health_check():
-    return {"status": "running", "local_db": "connected" if db_manager else "loading"}
+    if provider == "openai":
+        resolved_api_key = _resolve_openai_api_key(request) if auth_mode in {"api_key", "env", "hermes_openai_key", "hermes-openai-key", "hermes"} else request.api_key
+        if not resolved_api_key:
+            raise HTTPException(
+                status_code=400,
+                detail="OpenAI API key가 필요합니다. request.api_key, OPENAI_API_KEY, BioLinker .env, Hermes profile .env, ~/.hermes/.env 중 하나에 설정하세요.",
+            )
+        return ChatOpenAI(model=request.model_name, openai_api_key=resolved_api_key, temperature=0)
+    if provider == "anthropic":
+        if not request.api_key:
+            raise HTTPException(status_code=400, detail="Anthropic API key가 필요합니다.")
+        return ChatAnthropic(model=request.model_name, anthropic_api_key=request.api_key, temperature=0)
+    if provider == "google":
+        if not request.api_key:
+            raise HTTPException(status_code=400, detail="Google API key가 필요합니다.")
+        return ChatGoogleGenerativeAI(model=request.model_name, google_api_key=request.api_key, temperature=0)
+    if provider == "grok":
+        if not request.api_key:
+            raise HTTPException(status_code=400, detail="xAI/Grok API key가 필요합니다.")
+        return ChatOpenAI(
+            model=request.model_name,
+            openai_api_key=request.api_key,
+            openai_api_base="https://api.x.ai/v1",
+            temperature=0,
+        )
+    raise HTTPException(status_code=400, detail=f"지원하지 않는 제공자입니다: {provider}")
+
 
 @app.post("/api/v1/query", response_model=QueryResponse, tags=["Search"])
 async def process_query(request: QueryRequest):
-    """프론트엔드의 요청을 받아 실시간 추론 워크플로우를 실행합니다."""
-    
+    global db_manager
     if db_manager is None:
         raise HTTPException(status_code=503, detail="시스템이 아직 초기화 중입니다. 잠시 후 다시 시도하세요.")
 
-    logging.info(f"🔍 쿼리 수신: {request.question} (Model: {request.model_name})")
-
+    request_id = str(uuid.uuid4())[:8]
+    start = time.perf_counter()
+    logger.info(
+        "request_id=%s provider=%s model=%s retrieval_mode=%s top_k=%s question=%s",
+        request_id,
+        request.provider,
+        request.model_name,
+        request.retrieval_mode,
+        request.top_k,
+        request.question[:180],
+    )
     try:
-        # 1. 요청에 맞는 LLM 동적 생성
         dynamic_llm = get_dynamic_llm(request)
-        
-        # 2. 에이전트 매니저 생성 및 LLM 주입
-        # BioAgentManager를 요청 시마다 생성하여 주입된 LLM을 사용하게 함
         agent_manager = BioAgentManager(db_manager)
-        agent_manager.llm = dynamic_llm  # 에이전트의 두뇌를 동적으로 교체
-        
-        # 3. 워크플로우 생성 및 실행
+        agent_manager.llm = dynamic_llm
         workflow_app = create_workflow(agent_manager)
-        
-        # LangGraph State 실행
-        initial_state = {"question": request.question}
-        final_state = workflow_app.invoke(initial_state)
-        
+        final_state = workflow_app.invoke(
+            {
+                "question": request.question,
+                "route_override": request.retrieval_mode,
+                "top_k": request.top_k,
+            }
+        )
+        latency_ms = round((time.perf_counter() - start) * 1000, 2)
+        logger.info(
+            "request_id=%s route=%s confidence=%.2f latency_ms=%.2f safety=%s",
+            request_id,
+            final_state.get("route", "unknown"),
+            float(final_state.get("route_confidence", 0.0)),
+            latency_ms,
+            final_state.get("safety_flag", "ok"),
+        )
         return QueryResponse(
+            request_id=request_id,
             question=request.question,
             route=final_state.get("route", "unknown"),
+            route_confidence=float(final_state.get("route_confidence", 0.0)),
             final_answer=final_state.get("final_answer", "답변 생성에 실패했습니다."),
-            logs=final_state.get("logs", [])
+            citations=final_state.get("citations", []),
+            retrieved_doc_ids=final_state.get("retrieved_doc_ids", []),
+            graph_edges=final_state.get("graph_edges", []),
+            logs=final_state.get("logs", []),
+            latency_ms=latency_ms,
+            safety_flag=final_state.get("safety_flag", "ok"),
+            no_answer_reason=final_state.get("no_answer_reason", ""),
         )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("❌ request_id=%s 추론 실패: %s", request_id, exc)
+        raise HTTPException(status_code=500, detail=f"에이전트 처리 중 오류 발생: {exc}")
 
-    except Exception as e:
-        logging.error(f"❌ 추론 실패: {e}")
-        raise HTTPException(status_code=500, detail=f"에이전트 처리 중 오류 발생: {str(e)}")
 
-# 서버 직접 실행 로직
 if __name__ == "__main__":
     import uvicorn
-    # python app/api.py 명령어로 실행
-    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=False)
+
+    uvicorn.run("api:app", host=config.API_HOST, port=config.API_PORT, reload=False)

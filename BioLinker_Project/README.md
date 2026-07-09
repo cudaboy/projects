@@ -68,24 +68,25 @@ graph TD
 
 ### 파이프라인 구성 요소 상세 설명
 
-#### 🌐 User Interface
+* **[ 🌐 User Interface ]**
 
-**User Query (Streamlit UI)**: 사용자가 자연어로 질문을 입력하고, 최종 생성된 임상 리포트와 에이전트의 내부 추론 경로(Trace Logs)를 시각적으로 확인할 수 있는 대화형 웹 인터페이스입니다.
+    **User Query (Streamlit UI)**: 사용자가 자연어로 질문을 입력하고, 최종 생성된 임상 리포트와 에이전트의 내부 추론 경로(Trace Logs)를 시각적으로 확인할 수 있는 대화형 웹 인터페이스입니다.
 
-#### 🧠 LangGraph Multi-Agent Workflow ]
+* **[ 🧠 LangGraph Multi-Agent Workflow ]**
 
-**Router Agent (의도 분석)**: LLM을 활용해 사용자 질문의 핵심 의도를 분석합니다. 문헌 검색(Vector), 기전 탐색(Graph), 복합 탐색(Both), 혹은 무관한 질문(Irrelevant)인지 판단하여 최적의 데이터베이스 탐색 경로로 분기합니다.
+    **Router Agent (의도 분석)**: LLM을 활용해 사용자 질문의 핵심 의도를 분석합니다. 문헌 검색(Vector), 기전 탐색(Graph), 복합 탐색(Both), 혹은 무관한 질문(Irrelevant)인지 판단하여 최적의 데이터베이스 탐색 경로로 분기합니다.
 
-**Vector DB Retriever (논문 검색)**: 의학 도메인에 특화된 `ModernBERT` 임베딩을 통해, 질문과 의미론적으로 가장 유사한 논문 초록(Abstract) 데이터를 로컬 ChromaDB에서 고속으로 추출합니다.
+    **Vector DB Retriever (논문 검색)**: 의학 도메인에 특화된 `ModernBERT` 임베딩을 통해, 질문과 의미론적으로 가장 유사한 논문 초록(Abstract) 데이터를 로컬 ChromaDB에서 고속으로 추출합니다.
 
-**Graph DB Retriever (기전 탐색)**: 질문 텍스트 내에 포함된 핵심 개체(약물, 질병, 유전자 등)를 지식 그래프(NetworkX)의 노드와 직관적으로 매칭하고, 직접 연결된 1-hop 엣지를 추출하여 명시적인 인과관계(MoA)를 파악합니다.
+    **Graph DB Retriever (기전 탐색)**: 질문 텍스트 내에 포함된 핵심 개체(약물, 질병, 유전자 등)를 지식 그래프(NetworkX)의 노드와 직관적으로 매칭하고, 직접 연결된 1-hop 엣지를 추출하여 명시적인 인과관계(MoA)를 파악합니다.
 
-**Irrelevant Node (조기 종료)**: 의학 및 제약 R&D와 무관한 일상적인 질문이거나 데이터베이스 범위를 벗어난 가상 물질에 대한 질문을 차단하여, 불필요한 토큰 낭비 없이 안전하게 답변을 거절(Safe Refusal)합니다.
+    **Irrelevant Node (조기 종료)**: 의학 및 제약 R&D와 무관한 일상적인 질문이거나 데이터베이스 범위를 벗어난 가상 물질에 대한 질문을 차단하여, 불필요한 토큰 낭비 없이 안전하게 답변을 거절(Safe Refusal)합니다.
 
-**Synthesizer Agent (최종 리포트 합성)**: Vector DB의 문헌 컨텍스트와 Graph DB의 관계망 데이터를 종합합니다. 프롬프트 엔지니어링을 통해 외부 지식 개입을 엄격히 차단하고, 참조한 논문의 제목과 출처 ID를 강제로 인용하여 환각(Hallucination) 없는 논리적인 최종 임상 리포트를 생성합니다.
+    **Synthesizer Agent (최종 리포트 합성)**: Vector DB의 문헌 컨텍스트와 Graph DB의 관계망 데이터를 종합합니다. 프롬프트 엔지니어링을 통해 외부 지식 개입을 엄격히 차단하고, 참조한 논문의 제목과 출처 ID를 강제로 인용하여 환각(Hallucination) 없는 논리적인 최종 임상 리포트를 생성합니다.
 
-#### 🗄️ Data Sources
-**Bio-Medical Papers & Knowledge Graph:** AI-Hub의 전문 라벨링 데이터셋을 기반으로 파싱된 로컬 데이터베이스입니다. 논문 텍스트는 임베딩되어 Vector DB로, 개체 간 상호작용은 엣지(Edge)로 매핑되어 Graph DB로 활용됩니다.
+* **[ 🗄️ Data Sources ]**
+
+    **Bio-Medical Papers & Knowledge Graph:** AI-Hub의 전문 라벨링 데이터셋을 기반으로 파싱된 로컬 데이터베이스입니다. 논문 텍스트는 임베딩되어 Vector DB로, 개체 간 상호작용은 엣지(Edge)로 매핑되어 Graph DB로 활용됩니다.
 
 #### ⚙️ 에이전트 사고 과정 (Trace Logs) 시각화
 BioLinker는 모델이 답변을 도출하기까지 거친 데이터베이스 탐색 경로와 확보된 근거 데이터를 투명하게 공개하여 신뢰성을 제공합니다.
@@ -96,7 +97,7 @@ BioLinker는 모델이 답변을 도출하기까지 거친 데이터베이스 �
 
 ## 📦 2. Data Setup (데이터셋 세팅 안내)
 
-본 프로젝트는 AI-Hub(한국지능정보사회진흥원)에서 제공하는 전문 라벨링 데이터인 [바이오·의료 논문 간 연계분석 데이터](https://aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&dataSetSn=71369)를 활용합니다.
+본 프로젝트는 AI-Hub(한국지능정보사회진흥원)에서 제공하는 전문 라벨링 데이터인 **[바이오·의료 논문 간 연계분석 데이터](https://aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&dataSetSn=71369)**를 활용합니다.
 
 ### 🚨 저작권 및 데이터 무단 배포 금지 안내
 
@@ -135,8 +136,9 @@ BioLinker_Project           # 📦 배포용 최상위 루트 폴더
 │   └── config.py           # 시스템 전역 프롬프트 및 경로 설정
 │
 ├── scripts/                # 🛠️ 3. Execution Scripts
-│   ├── build_index.py      # 파싱된 데이터 기반 Vector / Graph DB 인덱싱
-│   └── evaluate.py         # Ragas 프레임워크 기반 하이브리드 RAG 정량 평가 스크립트
+│   ├── build_index.py             # 파싱된 데이터 기반 Vector / Graph DB 인덱싱
+│   ├── evaluate.py                # Ragas 프레임워크 기반 하이브리드 RAG 정량 평가 스크립트
+│   └── sensitivity_runner.py      # retrieval_mode/top_k 민감도 실험 실행
 │
 ├── data/                   # 📁 4. Local Database & Logs (Git Ignore 대상)
 │   ├── chroma_db/          # 로컬 임베딩 벡터 저장소
@@ -160,8 +162,8 @@ BioLinker_Project           # 📦 배포용 최상위 루트 폴더
 
 ```bash
 # 1. 저장소 클론 (Clone Repository)
-git clone [https://github.com/cudaboy/BioLinker_Project.git](https://github.com/cudaboy/BioLinker_Project.git)
-cd BioLinker_Project
+git clone https://github.com/cudaboy/projects.git
+cd projects/BioLinker_Project
 
 # 2. 가상환경 생성 및 활성화
 python3 -m venv venv
@@ -239,7 +241,112 @@ python run.py --ui
 
 ---
 
-## 📄 6. License (라이선스)
+## 🔌 6. API 사용 및 개발 검증
+
+FastAPI 백엔드는 `/health/live`, `/health/ready`, `/api/v1/query` 엔드포인트를 제공합니다.
+개발 중에는 백엔드 서버만 단독 실행한 뒤 `curl` 또는 Python `requests`로 smoke test를 수행할 수 있습니다.
+
+### 6.1 Health Check
+
+```bash
+curl http://127.0.0.1:8000/health/live
+curl http://127.0.0.1:8000/health/ready
+```
+
+`/health/ready`가 `ready: true`를 반환하면 ChromaDB/Knowledge Graph/Embedding 모델 초기화가 완료된 상태입니다.
+
+### 6.2 Query API
+
+```http
+POST /api/v1/query
+Content-Type: application/json
+```
+
+필수/주요 필드:
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `question` | string | 사용자 질문 |
+| `provider` | string | `openai`, `anthropic`, `google`, `grok` |
+| `model_name` | string | 예: `gpt-4o-mini` |
+| `auth_mode` | string | `api_key`, `hermes_openai_key`, `oauth` |
+| `api_key` | string | `api_key` 모드에서 사용. `hermes_openai_key` 개발 모드에서는 생략 가능 |
+| `retrieval_mode` | string | `auto`, `vector`, `graph`, `both` |
+| `top_k` | integer | 검색 문헌 수, 1~20 |
+
+응답에는 `request_id`, `route`, `route_confidence`, `final_answer`, `citations`, `graph_edges`, `logs`, `latency_ms`, `safety_flag`가 포함됩니다.
+
+### 6.3 API Key 방식 검증
+
+실무/배포 환경에서는 명시적 API key 전달 또는 서버 환경변수 기반 구성을 권장합니다.
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "aspirin의 항염증 기전을 문헌 근거와 함께 요약해줘",
+    "provider": "openai",
+    "model_name": "gpt-4o-mini",
+    "auth_mode": "api_key",
+    "api_key": "${OPENAI_API_KEY}",
+    "retrieval_mode": "both",
+    "top_k": 2
+  }'
+```
+
+### 6.4 Hermes OpenAI Key 개발 검증 모드
+
+개발 단계에서는 request payload에 API key를 직접 넣지 않고도 `auth_mode="hermes_openai_key"`로 검증할 수 있습니다.
+백엔드는 다음 순서로 `OPENAI_API_KEY`를 탐색합니다.
+
+1. 요청 payload의 `api_key`
+2. 현재 프로세스 환경변수 `OPENAI_API_KEY`
+3. BioLinker 프로젝트 `.env`
+4. Hermes biolinker profile `.env`
+5. Hermes default `.env`
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "aspirin의 항염증 기전을 문헌 근거와 함께 요약해줘",
+    "provider": "openai",
+    "model_name": "gpt-4o-mini",
+    "auth_mode": "hermes_openai_key",
+    "retrieval_mode": "both",
+    "top_k": 2
+  }'
+```
+
+검증된 개발 smoke test 예시:
+
+```text
+GET /health/ready -> HTTP 200
+POST /api/v1/query auth_mode=hermes_openai_key -> HTTP 200
+route=both, safety_flag=ok
+```
+
+### 6.5 OAuth 모드 주의사항
+
+`auth_mode="oauth"`는 Hermes OAuth credential을 이용하는 실험 경로입니다.
+OAuth token이 존재하더라도 OpenAI Responses API에 필요한 `api.responses.write` scope가 없으면 401이 발생할 수 있습니다.
+따라서 현재 개발/실무 검증의 기본 경로는 `api_key` 또는 `hermes_openai_key`입니다.
+
+### 6.6 평가 및 민감도 실험
+
+```bash
+# RAG 평가
+python scripts/evaluate.py --retrieval-mode both --top-k 5 --limit 3
+
+# retrieval_mode/top_k 조합 민감도 실험
+python scripts/sensitivity_runner.py --modes vector graph both --topks 3 5 8 --limit 3
+```
+
+평가 산출물은 `data/processed/` 아래에 저장되며, 로컬 실행 결과 파일은 기본적으로 git에 포함하지 않습니다.
+
+---
+
+## 📄 7. License (라이선스)
 
 이 프로젝트는 Apache License 2.0을 따릅니다.
 상업적 이용, 수정, 배포가 자유롭게 허용되며, 상세한 내용은 저장소 내 `LICENSE` 파일을 참조하시기 바랍니다.

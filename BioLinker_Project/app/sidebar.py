@@ -1,108 +1,99 @@
-"""
-===============================================================================
-[File Role]
-이 파일(sidebar.py)은 BioLinker 프로젝트 프론트엔드의 '전역 설정 및 보안 인증'을 담당합니다.
+"""BioLinker Streamlit sidebar."""
 
-[상세 기능]
-1. 멀티 LLM 엔진 관리: OpenAI, Anthropic, Google, Grok 모델을 동적으로 선택할 수 있습니다.
-2. 실시간 보안 인증: 사용자가 직접 UI에서 API 키를 입력하여 백엔드로 전달합니다.
-3. 시스템 추적 제어: LangSmith 활성화 여부 및 관련 API 키 설정을 관리합니다.
-===============================================================================
-"""
+from __future__ import annotations
 
-import streamlit as st
 import os
+import streamlit as st
+
 
 def render_sidebar():
-    """Streamlit 좌측 사이드바를 구성하고 사용자 설정값을 반환합니다."""
     with st.sidebar:
-        # 로고 이미지를 제거하고 텍스트 타이틀만 깔끔하게 표시합니다.
         st.title("🧬 BioLinker")
-        
         st.subheader("⚙️ 시스템 설정")
         st.markdown("---")
-        
-        # 1. AI 모델 설정 섹션
+
         st.subheader("🤖 LLM 추론 모델 설정")
         provider = st.selectbox(
-            "LLM 제공자 (Provider)", 
+            "LLM 제공자 (Provider)",
             ["OpenAI", "Anthropic", "Google", "Grok"],
-            help="답변 합성을 담당할 메인 언어 모델의 제조사를 선택하세요."
+            help="최종 답변 합성을 담당할 언어 모델 제공자를 선택합니다.",
         )
-        
-        # 제공자별 세부 모델 매핑 및 API 키 입력 (환경 변수 자동 인식 포함)
+
         if provider == "OpenAI":
+            auth_mode = st.selectbox(
+                "인증 방식",
+                ["api_key", "hermes_openai_key", "oauth"],
+                index=0,
+                help="api_key: 직접 입력/API 요청값 사용, hermes_openai_key: 개발용으로 환경변수·BioLinker .env·Hermes .env의 OPENAI_API_KEY 자동 사용, oauth: Hermes OAuth 토큰 사용(별도 scope 필요)",
+            )
             model_name = st.selectbox("모델 선택", ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"])
-            api_key = st.text_input(
-                "OpenAI API Key", 
-                type="password", 
-                value=os.getenv("OPENAI_API_KEY", ""),
-                placeholder="sk-..."
-            )
+            default_key = "" if auth_mode in {"hermes_openai_key", "oauth"} else os.getenv("OPENAI_API_KEY", "")
+            api_key = st.text_input("OpenAI API Key", type="password", value=default_key, placeholder="sk-...")
         elif provider == "Anthropic":
+            auth_mode = "api_key"
             model_name = st.selectbox("모델 선택", ["claude-3-5-sonnet-20240620", "claude-3-opus-20240229"])
-            api_key = st.text_input(
-                "Anthropic API Key", 
-                type="password", 
-                value=os.getenv("ANTHROPIC_API_KEY", ""),
-                placeholder="sk-ant-..."
-            )
+            api_key = st.text_input("Anthropic API Key", type="password", value=os.getenv("ANTHROPIC_API_KEY", ""), placeholder="sk-ant-...")
         elif provider == "Google":
+            auth_mode = "api_key"
             model_name = st.selectbox("모델 선택", ["gemini-1.5-pro", "gemini-1.5-flash"])
-            api_key = st.text_input(
-                "Google AI API Key", 
-                type="password",
-                value=os.getenv("GOOGLE_API_KEY", "")
-            )
-        elif provider == "Grok":
+            api_key = st.text_input("Google AI API Key", type="password", value=os.getenv("GOOGLE_API_KEY", ""))
+        else:
+            auth_mode = "api_key"
             model_name = st.selectbox("모델 선택", ["grok-2-1212", "grok-2-latest", "grok-beta"])
             api_key = st.text_input(
-                "xAI (Grok) API Key", 
-                type="password", 
+                "xAI (Grok) API Key",
+                type="password",
                 value=os.getenv("XAI_API_KEY", os.getenv("GROK_API_KEY", "")),
-                placeholder="xai-..."
+                placeholder="xai-...",
             )
-            
+
         st.markdown("---")
-        
-        # 2. LangSmith 및 모니터링 설정
-        st.subheader("🛠️ 모니터링 옵션")
-        use_langsmith = st.checkbox(
-            "LangSmith 추적 활성화", 
-            value=False,
-            help="에이전트의 사고 과정을 LangSmith 대시보드에서 실시간 모니터링합니다."
+        st.subheader("🧪 검색 실험 옵션")
+        retrieval_mode = st.selectbox(
+            "Retrieval Mode",
+            ["auto", "vector", "graph", "both"],
+            index=0,
+            help="auto는 라우터가 결정하고, 나머지는 강제로 해당 retrieval 경로를 사용합니다.",
         )
-        
+        top_k = st.slider("Top-K 문헌 수", min_value=1, max_value=12, value=6, step=1)
+        show_raw_payload = st.checkbox("Raw API Response 보기", value=False)
+
+        st.markdown("---")
+        st.subheader("🛠️ 모니터링 옵션")
+        use_langsmith = st.checkbox("LangSmith 추적 활성화", value=False)
         langsmith_api_key = ""
         if use_langsmith:
             langsmith_api_key = st.text_input(
-                "LangSmith API Key", 
-                type="password", 
+                "LangSmith API Key",
+                type="password",
                 value=os.getenv("LANGCHAIN_API_KEY", ""),
-                placeholder="lsv2_pt_..."
+                placeholder="lsv2_pt_...",
             )
-            
+
         st.markdown("---")
-        
-        # 3. 프로젝트 정보
         st.info(
-            "💡 **BioLinker**는 ModernBERT을 이용한 의료 데이터 특화 임베딩과 "
-            "Multi-hop 그래프 추론을 결합하여 지식을 탐색합니다."
+            "💡 BioLinker는 vector 문헌 검색과 knowledge graph 탐색을 결합합니다.\n\n"
+            "- route confidence\n- evidence panel\n- citation trace\n- retrieval mode 비교"
         )
-        
         with st.expander("📌 시스템 아키텍처"):
-            st.markdown("""
-            - **Brain:** LangGraph Multi-Agent
-            - **Memory:** ChromaDB (Abstracts)
-            - **Structure:** NetworkX (Knowledge Graph)
-            """)
-        
+            st.markdown(
+                """
+- **Brain:** LangGraph Multi-Agent
+- **Memory:** ChromaDB (chunked literature)
+- **Structure:** NetworkX (knowledge graph)
+- **API:** FastAPI readiness / health endpoints
+                """.strip()
+            )
         st.caption("© 2026 BioLinker System | AI-Powered Bio Intelligence")
-        
+
         return {
             "provider": provider.lower(),
             "model_name": model_name,
             "api_key": api_key,
+            "auth_mode": auth_mode,
             "use_langsmith": use_langsmith,
-            "langsmith_api_key": langsmith_api_key
+            "langsmith_api_key": langsmith_api_key,
+            "retrieval_mode": retrieval_mode,
+            "top_k": top_k,
+            "show_raw_payload": show_raw_payload,
         }

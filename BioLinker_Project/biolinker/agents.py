@@ -1,28 +1,26 @@
 """
-===============================================================================
-[File Role]
-이 파일(agents.py)은 BioLinker 프로젝트의 '멀티에이전트 두뇌(LLM Nodes)' 역할을 담당합니다.
+BioLinker 멀티에이전트 로직.
 
-[상세 설명]
-1. 목적: LangGraph 워크플로우(workflow.py)에서 호출될 개별 에이전트들의 핵심 로직(검색, 추론, 합성)을 정의합니다.
-2. 주요 에이전트(Nodes):
-   - Router Agent: 사용자의 질문 의도를 분석하여 Vector DB를 뒤질지, Graph DB를 뒤질지, 혹은 둘 다 필요한지 분기합니다.
-   - Vector Retrieval Agent: database.py의 Vector DB를 활용해 관련 논문 텍스트(Context)를 검색합니다.
-   - Graph Retrieval Agent: 질문에서 핵심 개체(Entity)를 추출한 뒤, Graph DB에서 기전(MoA) 연결 경로를 탐색합니다.
-   - Synthesizer Agent: 검색된 하이브리드 데이터를 종합하여, 임상 연구원에게 제공할 최종 답변과 근거를 합성합니다.
-===============================================================================
+개선 사항
+- route confidence / rationale 반환
+- graph entity normalization + alias matching
+- 1-hop/2-hop 그래프 탐색
+- citation 추출 구조화
 """
 
-import logging
-from typing import List, Dict, Any, Tuple
-import networkx as nx
+from __future__ import annotations
 
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
+import json
+import logging
+import re
+from collections import defaultdict, deque
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+import networkx as nx
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 
-# 전역 설정 및 데이터베이스 매니저 호출
 try:
     from biolinker import config
     from biolinker.database import BioDatabaseManager
@@ -30,195 +28,249 @@ except ImportError:
     import config
     from database import BioDatabaseManager
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+
 class BioAgentManager:
     def __init__(self, db_manager: BioDatabaseManager) -> None:
-        """
-        에이전트 구동에 필요한 LLM과 데이터베이스 연결을 초기화합니다.
-        """
         self.db_manager = db_manager
-        # LLM 객체는 api.py에서 사용자 인증 후 동적으로 주입될 수 있도록 None으로 초기화
-        self.llm: Any = None 
-        
-        # 하이브리드 검색기(Retriever) 로드
-        self.vector_retriever = self.db_manager.get_vector_retriever()
+        self.llm: Any = None
         self.knowledge_graph: nx.DiGraph = self.db_manager.load_knowledge_graph()
+        self.alias_map = self._build_alias_map()
 
-    # ---------------------------------------------------------
-    # 1. Router Agent (라우터 에이전트)
-    # ---------------------------------------------------------
-    def route_query(self, question: str) -> str:
-        """
-        사용자의 질문을 분석하여 탐색할 데이터베이스 경로를 결정합니다.
-        (vector, graph, both, irrelevant 중 하나를 반환)
-        """
+    @staticmethod
+    def normalize_text(value: str) -> str:
+        value = str(value or "").strip().lower()
+        value = re.sub(r"[^0-9a-z가-힣]+", " ", value)
+        return re.sub(r"\s+", " ", value).strip()
+
+    def _build_alias_map(self) -> Dict[str, str]:
+        alias_map: Dict[str, str] = {}
+        for node, attrs in self.knowledge_graph.nodes(data=True):
+            normalized = self.normalize_text(node)
+            alias_map[normalized] = str(node)
+            if attrs.get("normalized_name"):
+                alias_map[self.normalize_text(attrs["normalized_name"])] = str(node)
+            compact = normalized.replace(" ", "")
+            if compact:
+                alias_map[compact] = str(node)
+        return alias_map
+
+    def route_query(self, question: str) -> Dict[str, Any]:
         if not self.llm:
             raise ValueError("LLM이 초기화되지 않았습니다. api.py에서 주입되었는지 확인하세요.")
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", 
-             "당신은 제약 R&D 임상이행 파트의 인텐트 라우터(Intent Router)입니다.\n"
-             "사용자의 질문이 논문 문헌 검색이 필요한지, 질병-유전자-약물 간의 관계(Graph) 탐색이 필요한지, 혹은 둘 다 필요한지 판단하세요.\n"
-             "결과는 반드시 'vector', 'graph', 'both', 'irrelevant' 중 하나의 단어만 소문자로 출력하세요.\n"
-             "💡 주의: 가상의 약물이나 신약 후보 물질(예: FakeDrug)에 대한 임상적/가설적 질문도 반드시 의학 질문으로 간주하여 'vector'나 'both'로 분류하세요. 절대 'irrelevant'로 차단하지 마세요.\n"
-             "의학, 약학, 생물학과 전혀 무관한 일상 대화일 때만 'irrelevant'를 출력하세요."
-            ),
-            ("user", f"질문: {question}")
-        ])
-        
-        chain = prompt | self.llm | StrOutputParser()
-        decision: str = chain.invoke({}).strip().lower()
-        
-        if decision not in ['vector', 'graph', 'both', 'irrelevant']:
-            return 'both'
-        return decision
-
-    # ---------------------------------------------------------
-    # 2. Vector DB Retriever Agent
-    # ---------------------------------------------------------
-    def retrieve_vector_context(self, question: str) -> List[Any]:
-        """
-        의학 특화 임베딩을 통해 질문과 의미론적으로 가장 유사한 논문 초록을 검색합니다.
-        """
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    """
+당신은 바이오메디컬 RAG 시스템의 라우터입니다.
+사용자의 질문을 vector, graph, both, irrelevant 중 하나로 분류하고 confidence(0~1), rationale, rewritten_query를 JSON으로 반환하세요.
+규칙:
+- 문헌 근거 탐색이 핵심이면 vector
+- 관계/기전/경로 탐색이 핵심이면 graph
+- 둘 다 필요하면 both
+- 의학/약학/생물학과 무관한 질문일 때만 irrelevant
+- rewritten_query는 검색 친화적으로 짧고 명확하게 정리
+응답 예시:
+{"route":"both","confidence":0.82,"rationale":"약물 기전과 논문 근거가 모두 필요함","rewritten_query":"aspirin cardiovascular mechanism clinical evidence"}
+JSON 외 텍스트 금지.
+                    """.strip(),
+                ),
+                ("user", f"질문: {question}"),
+            ]
+        )
+        raw = (prompt | self.llm | StrOutputParser()).invoke({}).strip()
         try:
-            docs = self.vector_retriever.invoke(question)
-            return docs
-        except Exception as e:
-            logging.error(f"Vector DB 검색 오류: {e}")
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            parsed = {"route": "both", "confidence": 0.5, "rationale": raw[:200], "rewritten_query": question}
+        route = str(parsed.get("route", "both")).strip().lower()
+        if route not in {"vector", "graph", "both", "irrelevant"}:
+            route = "both"
+        try:
+            confidence = float(parsed.get("confidence", 0.5))
+        except (TypeError, ValueError):
+            confidence = 0.5
+        return {
+            "route": route,
+            "confidence": max(0.0, min(1.0, confidence)),
+            "rationale": str(parsed.get("rationale", ""))[:240],
+            "rewritten_query": str(parsed.get("rewritten_query", question)).strip() or question,
+        }
+
+    def retrieve_vector_context(self, question: str, top_k: Optional[int] = None) -> List[Document]:
+        try:
+            return self.db_manager.search_vector(question, k=top_k or config.RETRIEVER_K)
+        except Exception as exc:
+            logging.error(f"Vector DB 검색 오류: {exc}")
             return []
 
-    # ---------------------------------------------------------
-    # 3. Simple Graph Retriever Agent (멀티홉 제거 및 매칭 고도화 버전)
-    # ---------------------------------------------------------
-    def retrieve_graph_context(self, question: str) -> Tuple[str, List[str]]:
-        """
-        Knowledge Graph에서 질문 텍스트와 매칭되는 단일 노드의 직접 연결(1-hop) 정보만 단순 추출합니다.
-        """
-        current_logs = []
-        
-        if not self.knowledge_graph or len(self.knowledge_graph.nodes) == 0:
-            current_logs.append("⚠️ [Graph DB] 그래프 데이터베이스가 비어있어 탐색을 건너뜁니다.")
-            return "그래프 데이터베이스가 비어있습니다.", current_logs
+    def _match_nodes(self, question: str) -> List[str]:
+        normalized_question = self.normalize_text(question)
+        compact_question = normalized_question.replace(" ", "")
+        matched: List[str] = []
+        for alias, node in self.alias_map.items():
+            if not alias:
+                continue
+            if alias in normalized_question or alias in compact_question:
+                matched.append(node)
+        # 짧은 노드명보다 긴 노드명을 우선 유지
+        unique = sorted(set(matched), key=lambda item: (-len(self.normalize_text(item)), item))
+        filtered: List[str] = []
+        for node in unique:
+            node_norm = self.normalize_text(node)
+            if any(node_norm != self.normalize_text(other) and node_norm in self.normalize_text(other) for other in filtered):
+                continue
+            filtered.append(node)
+        return filtered[:8]
 
-        question_lower = question.lower()
-        raw_matched_nodes = []
-        
-        # [Step 1] 질문 내에 그래프 노드 이름이 문자열로 포함되어 있는지 1차 매칭
-        for node in self.knowledge_graph.nodes():
-            node_str = str(node).lower()
-            if len(node_str) > 1 and node_str in question_lower:
-                raw_matched_nodes.append(str(node))
-                
-        # [Step 2] 노이즈 제거 필터링 (예: 'BRCA1'이 매칭되면 종속 단어인 'RC', 'CA' 등은 탈락시킴)
-        matched_nodes = set()
-        for n in raw_matched_nodes:
-            is_substring = False
-            for other in raw_matched_nodes:
-                if n != other and n.lower() in other.lower():
-                    is_substring = True
-                    break
-            if not is_substring:
-                matched_nodes.add(n)
+    def retrieve_graph_context(self, question: str, max_hops: Optional[int] = None) -> Tuple[str, List[str], List[dict]]:
+        logs: List[str] = []
+        if not self.knowledge_graph or self.knowledge_graph.number_of_nodes() == 0:
+            logs.append("⚠️ [Graph DB] 그래프 데이터베이스가 비어있어 탐색을 건너뜁니다.")
+            return "그래프 데이터베이스가 비어있습니다.", logs, []
 
-        # 매칭된 결과가 없을 경우
+        matched_nodes = self._match_nodes(question)
         if not matched_nodes:
-            current_logs.append("⚠️ [Graph DB] 질문과 일치하는 명시적 의료 keyword(약물/질환 등)를 찾지 못했습니다.")
-            return "질문과 직접적으로 연관된 그래프 관계 정보가 없습니다.", current_logs
+            logs.append("⚠️ [Graph DB] 질문과 일치하는 정규화된 의료 entity를 찾지 못했습니다.")
+            return "질문과 직접적으로 연관된 그래프 관계 정보가 없습니다.", logs, []
 
-        # 매칭 성공 로그 (사용자 친화적)
-        current_logs.append(f"📍 [Graph DB] 질문에서 핵심 keyword 검색 완료: {', '.join(list(matched_nodes))}")
+        hop_limit = max_hops or config.GRAPH_MAX_HOPS
+        logs.append(f"📍 [Graph DB] entity 매칭 완료: {', '.join(matched_nodes)}")
 
-        found_edges: List[str] = []
-        preview_edges: List[str] = []
-        
-        # [Step 3] 1-hop 직접 연결된 이웃 노드만 검색
-        for node in matched_nodes:
-            for neighbor in self.knowledge_graph.successors(node):
-                edge_data: Dict[str, Any] = self.knowledge_graph.get_edge_data(node, neighbor)
-                relation: str = edge_data.get('relation', '연관됨')
-                doc_id: str = edge_data.get('doc_id', '출처미상')
-                
-                # 합성용 데이터 저장
-                found_edges.append(f"[{node}] --({relation})--> [{neighbor}] (출처 논문 ID: {doc_id})")
-                
-                # UI 로그 미리보기용 데이터 저장 (최대 2개까지만 표출)
-                if len(preview_edges) < 2:
-                    preview_edges.append(f"[{node}] → [{neighbor}]")
+        ranked_edges: List[dict] = []
+        visited_paths = set()
+        for root in matched_nodes:
+            queue = deque([(root, 0)])
+            seen = {root}
+            while queue:
+                current, depth = queue.popleft()
+                if depth >= hop_limit:
+                    continue
+                for neighbor in self.knowledge_graph.successors(current):
+                    edge = self.knowledge_graph.get_edge_data(current, neighbor) or {}
+                    edge_key = (root, current, neighbor)
+                    if edge_key in visited_paths:
+                        continue
+                    visited_paths.add(edge_key)
+                    record = {
+                        "source": root,
+                        "subject": current,
+                        "object": neighbor,
+                        "relation": edge.get("relation", "연관됨"),
+                        "doc_id": edge.get("doc_id", "출처미상"),
+                        "journal": edge.get("journal", ""),
+                        "year": edge.get("year", ""),
+                        "evidence_text": edge.get("evidence_text", ""),
+                        "confidence": edge.get("confidence", ""),
+                        "hop": depth + 1,
+                    }
+                    ranked_edges.append(record)
+                    if neighbor not in seen:
+                        seen.add(neighbor)
+                        queue.append((neighbor, depth + 1))
 
-        unique_edges = list(set(found_edges))
-        
-        if unique_edges:
-            log_msg = f"🕸️ [Graph DB] 지식 그래프 탐색 성공: keyword 간 연관된 {len(unique_edges)}개의 관계 정보를 추출했습니다."
-            if preview_edges:
-                log_msg += f" (예시: {', '.join(preview_edges)} ...)"
-            current_logs.append(log_msg)
-            
-            return "\n".join(sorted(unique_edges)), current_logs
-        else:
-            current_logs.append(f"⚠️ [Graph DB] '{', '.join(list(matched_nodes))}' keyword는 찾았으나, 연결된 관계 정보가 없습니다.")
-            return "keyword 간 연관 관계가 그래프에 존재하지 않습니다.", current_logs
+        ranked_edges = sorted(
+            ranked_edges,
+            key=lambda item: (item["hop"], 0 if item.get("doc_id") else 1, str(item["relation"])),
+        )[: config.GRAPH_MAX_EDGES]
 
-    # ---------------------------------------------------------
-    # 4. Synthesizer Agent (종합 및 답변 생성 에이전트)
-    # ---------------------------------------------------------
-    def synthesize_answer(self, question: str, vector_docs: List[Any], graph_context: str) -> str:
-        """
-        검색된 하이브리드 컨텍스트(Vector 논문 + Graph 관계망)를 종합하여 
-        연구원 맞춤형 최종 답변 리포트를 생성합니다.
-        """
+        if not ranked_edges:
+            logs.append("⚠️ [Graph DB] 매칭된 entity는 있으나 연결 관계를 찾지 못했습니다.")
+            return "연결된 그래프 관계 정보가 없습니다.", logs, []
+
+        preview = [f"[{edge['subject']}] → [{edge['object']}]" for edge in ranked_edges[: config.GRAPH_PREVIEW_EDGES]]
+        logs.append(
+            f"🕸️ [Graph DB] {len(ranked_edges)}개의 관계 추출 완료 (예시: {', '.join(preview)})"
+        )
+
+        lines = []
+        for edge in ranked_edges:
+            evidence = f" | evidence: {edge['evidence_text'][:160]}" if edge.get("evidence_text") else ""
+            lines.append(
+                f"[{edge['subject']}] --({edge['relation']})--> [{edge['object']}] "
+                f"(hop={edge['hop']}, doc_id={edge['doc_id']}, year={edge['year']}){evidence}"
+            )
+        return "\n".join(lines), logs, ranked_edges
+
+    @staticmethod
+    def build_citations(vector_docs: Sequence[Document]) -> List[dict]:
+        citations: List[dict] = []
+        seen = set()
+        for doc in vector_docs:
+            doc_id = str(doc.metadata.get("doc_id", "unknown"))
+            if doc_id in seen:
+                continue
+            seen.add(doc_id)
+            citations.append(
+                {
+                    "doc_id": doc_id,
+                    "title": str(doc.metadata.get("title", "제목 없음")),
+                    "journal": str(doc.metadata.get("journal", "")),
+                    "year": str(doc.metadata.get("year", "")),
+                    "score": float(doc.metadata.get("score", 0.0)),
+                    "chunk_id": str(doc.metadata.get("chunk_id", "")),
+                }
+            )
+        return citations
+
+    def synthesize_answer(
+        self,
+        question: str,
+        vector_docs: Sequence[Document],
+        graph_context: str,
+        no_answer_reason: str = "",
+    ) -> str:
         if not self.llm:
             raise ValueError("LLM이 초기화되지 않았습니다.")
 
-        # [안전 장치 완화] 두 DB 모두 비어있을 때만 에러 문구 반환 (하나라도 있으면 답변 시도)
-        is_vector_empty = not vector_docs
-        is_graph_empty = (not graph_context or "없습니다" in graph_context or "비어있습니다" in graph_context)
-        
-        if is_vector_empty and is_graph_empty:
-            return "❌ 질문과 관련된 임상 논문 근거 및 그래프 데이터를 당사의 데이터베이스에서 찾을 수 없습니다. (데이터 보유 범위 초과)"
+        if no_answer_reason:
+            return (
+                "## 답변 보류\n"
+                f"- 사유: {no_answer_reason}\n"
+                "- 현재 검색 결과만으로는 신뢰할 수 있는 임상/기전 결론을 제시하기 어렵습니다.\n"
+                "- 질환명/약물명/유전자명을 더 구체화하거나 데이터 적재 범위를 확인해 주세요."
+            )
 
-        # 벡터 문서 내용 합치기 및 출처 포맷팅
-        formatted_docs: List[str] = []
-        for i, doc in enumerate(vector_docs, 1):
-            title: str = doc.metadata.get('title', '제목 없음')
-            doc_id: str = doc.metadata.get('doc_id', '알 수 없는 ID')
-            formatted_docs.append(f"[문헌 {i}]\n- 제목: {title}\n- 출처 ID: {doc_id}\n- 내용: {doc.page_content}")
-        
-        vector_text: str = "\n\n".join(formatted_docs)
-        if not vector_text.strip():
-            vector_text = "Vector DB에서 검색된 문헌 정보가 없습니다."
+        if not vector_docs and (not graph_context or "없습니다" in graph_context or "비어있습니다" in graph_context):
+            return "## 답변 보류\n- 검색된 문헌 및 그래프 근거가 모두 부족합니다."
 
-        # 프롬프트 구성
-        system_prompt = """
-        당신은 데이터 기반 임상 연구원입니다.
-        주어진 [Vector DB 검색 결과]와 [Graph DB 개체 관계] 데이터를 종합하여 사용자의 질문에 전문적이고 논리적인 리포트 형태로 답변하세요.
-        
-        [필수 지시사항 - 할루시네이션 방지 가이드레일]
-        1. 제공된 데이터 외의 외부 지식을 활용하여 허위 내용을 지어내지 마세요.
-        2. 답변의 근거를 제시할 때는 '문헌 1에서'와 같이 애매하게 표현하지 말고, 제공된 문헌의 **[논문 제목]**이나 **[출처 ID]**를 괄호로 명시하여 신뢰성을 증명하세요.
-        3. [가장 중요] 검색된 [Vector DB] 문헌이나 [Graph DB] 정보 내용 중에 사용자가 질문한 **핵심 질환명이나 약물명이 전혀 포함되어 있지 않다면**, 절대 모델이 가진 사전 지식으로 답변을 지어내지 마세요. 이 경우 무조건 "근거 데이터가 부족합니다. 제공된 문헌과 데이터베이스 검색 결과에서는 해당 정보를 찾을 수 없습니다." 라고만 답변하세요.
-        4. Graph DB에서 제공된 1-hop 기전 정보들을 활용하여 약물과 질환 간의 인과 흐름(예: A -> B)을 논리적으로 연결하여 설명하세요.
-        """
+        formatted_docs = []
+        for idx, doc in enumerate(vector_docs, start=1):
+            formatted_docs.append(
+                "\n".join(
+                    [
+                        f"[문헌 {idx}]",
+                        f"- 제목: {doc.metadata.get('title', '제목 없음')}",
+                        f"- 출처 ID: {doc.metadata.get('doc_id', 'unknown')}",
+                        f"- 저널/연도: {doc.metadata.get('journal', '')} / {doc.metadata.get('year', '')}",
+                        f"- score: {doc.metadata.get('score', 0.0):.4f}",
+                        f"- 내용: {doc.page_content}",
+                    ]
+                )
+            )
+        vector_text = "\n\n".join(formatted_docs) if formatted_docs else "검색된 문헌 없음"
 
-        user_prompt = f"""
-        [사용자 질문]: {question}
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", config.SYNTHESIS_TEMPLATE),
+                (
+                    "user",
+                    f"""
+[사용자 질문]
+{question}
 
-        ---
-        [Vector DB 검색 결과 (논문 문헌)]
-        {vector_text}
+[Vector DB 검색 결과]
+{vector_text}
 
-        ---
-        [Graph DB 개체 관계 검색 결과]
-        {graph_context}
-        """
+[Graph DB 관계 검색 결과]
+{graph_context}
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", system_prompt),
-            ("user", user_prompt)
-        ])
-        
-        chain = prompt | self.llm | StrOutputParser()
-        try:
-            final_answer: str = chain.invoke({})
-            return final_answer
-        except Exception as e:
-            logging.error(f"Synthesizer 처리 중 오류 발생: {e}")
-            return "응답을 합성하는 도중 오류가 발생했습니다."
+반드시 markdown으로 답변하세요.
+""".strip(),
+                ),
+            ]
+        )
+        return (prompt | self.llm | StrOutputParser()).invoke({})

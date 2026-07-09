@@ -1,187 +1,228 @@
 """
-===============================================================================
-[File Role]
-이 파일(main.py)은 BioLinker 프로젝트의 '프론트엔드 진입점(Main Entry Point)'입니다.
+BioLinker Streamlit frontend.
 
-[전체 프로젝트 내 역할]
-1. UI 오케스트레이션: sidebar.py와 협력하여 전체 웹 인터페이스의 레이아웃과 설정을 관리합니다.
-2. 상태 유지(Stateful Management): Streamlit의 세션 상태를 활용해 대화 흐름을 끊김 없이 유지합니다.
-3. 백엔드 통신(Bridge): 사용자가 입력한 보안 API 키와 질의 내용을 FastAPI 백엔드(api.py)로 
-   안전하게 전달하고 응답을 수신합니다.
-4. 사용자 경험(UX): AI의 추론 과정(어떤 DB를 탐색했는지 등)을 투명하게 시각화하여 
-   사용자에게 근거 중심의 신뢰할 수 있는 답변을 제공합니다.
-5. 대화 내용 저장: 대화 내역을 로컬 파일(json)에 지속적으로 저장하고 재시작 시 불러오는 로깅 기능 추가
-   대화 내역 초기화 및 다운로드 버튼 UI 추가
-===============================================================================
+개선 사항
+- 세션별 로그 저장
+- backend readiness 상태 표시
+- 답변 / citation / graph / raw response 패널 분리
+- retrieval mode / top_k 실험 옵션 전달
 """
 
-import streamlit as st
-import requests
-import time
-import sys
-import os
+from __future__ import annotations
+
 import json
+import time
+import uuid
 from pathlib import Path
+
+import requests
+import streamlit as st
 from dotenv import load_dotenv
 
-# 1. 환경 변수 로드
+try:
+    from biolinker import config as app_config
+except ImportError:
+    import sys
+
+    sys.path.append(str(Path(__file__).resolve().parent.parent))
+    from biolinker import config as app_config
+
+from sidebar import render_sidebar
+
 env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
-# [경로 설정] sidebar.py 인식을 위한 경로 추가
-current_dir = Path(__file__).resolve().parent
-if str(current_dir) not in sys.path:
-    sys.path.append(str(current_dir))
+API_URL = f"http://localhost:{app_config.API_PORT}/api/v1/query"
+READY_URL = f"http://localhost:{app_config.API_PORT}/health/ready"
 
-from sidebar import render_sidebar 
+st.set_page_config(page_title="BioLinker | AI-Powered Bio RAG", page_icon="🧬", layout="wide")
 
-# ---------------------------------------------------------
-# 로컬 로그 저장 기능 구현
-# ---------------------------------------------------------
-# 채팅 기록을 저장할 JSON 파일 경로 지정 (data 폴더 내)
-CHAT_LOG_FILE = Path(__file__).resolve().parent.parent / "data" / "chat_history.json"
+
+def get_session_id() -> str:
+    if "session_id" not in st.session_state:
+        st.session_state.session_id = str(uuid.uuid4())[:8]
+    return st.session_state.session_id
+
+
+def session_log_file() -> Path:
+    return app_config.SESSION_LOG_DIR / f"chat_{get_session_id()}.json"
+
 
 def save_chat_history():
-    """현재 세션의 채팅 기록을 로컬 JSON 파일에 저장합니다."""
-    CHAT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(CHAT_LOG_FILE, "w", encoding="utf-8") as f:
-        json.dump(st.session_state.messages, f, ensure_ascii=False, indent=2)
+    path = session_log_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(st.session_state.messages, handle, ensure_ascii=False, indent=2)
+
 
 def clear_chat_history():
-    """채팅 기록을 초기화하고 파일에서도 삭제합니다."""
     st.session_state.messages = [
-        {"role": "assistant", "content": "반갑습니다! 오늘 어떤 약물의 기전이나 질환 정보를 찾아드릴까요?"}
+        {
+            "role": "assistant",
+            "content": "반갑습니다! 약물 기전, 질환-유전자 관계, 관련 문헌 근거를 함께 탐색해드릴게요.",
+        }
     ]
     save_chat_history()
 
-# ---------------------------------------------------------
-# 페이지 설정 및 UI 초기화
-# ---------------------------------------------------------
-st.set_page_config(
-    page_title="BioLinker | AI-Powered Bio RAG",
-    page_icon="🧬",
-    layout="wide"
-)
 
-# FastAPI 백엔드 주소
-API_URL = "http://localhost:8000/api/v1/query"
+def load_readiness() -> dict:
+    try:
+        response = requests.get(READY_URL, timeout=5)
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        return {"status": "unreachable", "ready": False, "error": str(exc)}
 
-# 사이드바 렌더링 및 설정값 수신
-config = render_sidebar()
 
-# 메인 화면 헤더
+def render_assistant_message(msg: dict, show_raw_payload: bool = False):
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+        if msg.get("role") != "assistant":
+            return
+        meta = msg.get("meta") or {}
+        if not meta:
+            return
+        cols = st.columns(4)
+        cols[0].metric("Route", meta.get("route", "unknown").upper())
+        cols[1].metric("Confidence", f"{float(meta.get('route_confidence', 0.0)):.2f}")
+        cols[2].metric("Latency", f"{float(meta.get('latency_ms', 0.0)):.0f} ms")
+        cols[3].metric("Safety", meta.get("safety_flag", "ok"))
+
+        tab_answer, tab_citations, tab_graph, tab_logs, tab_raw = st.tabs(
+            ["Answer", "Citations", "Graph", "Trace Logs", "Raw JSON"]
+        )
+        with tab_answer:
+            if meta.get("no_answer_reason"):
+                st.warning(f"근거 부족 사유: {meta['no_answer_reason']}")
+            st.markdown(msg["content"])
+        with tab_citations:
+            citations = meta.get("citations", [])
+            if not citations:
+                st.info("표시할 문헌 citation이 없습니다.")
+            else:
+                for citation in citations:
+                    st.markdown(
+                        f"- **{citation.get('title','제목 없음')}**  \
+출처 ID: `{citation.get('doc_id','')}` | 저널: {citation.get('journal','')} | 연도: {citation.get('year','')} | score: {float(citation.get('score',0.0)):.4f}"
+                    )
+        with tab_graph:
+            graph_edges = meta.get("graph_edges", [])
+            if not graph_edges:
+                st.info("표시할 그래프 관계가 없습니다.")
+            else:
+                for edge in graph_edges:
+                    st.markdown(
+                        f"- `{edge.get('subject','')}` --**{edge.get('relation','')}``→ `{edge.get('object','')}` "
+                        f"(hop={edge.get('hop',1)}, doc={edge.get('doc_id','')}, year={edge.get('year','')})"
+                    )
+                    if edge.get("evidence_text"):
+                        st.caption(edge["evidence_text"][:240])
+        with tab_logs:
+            for log in meta.get("logs", []):
+                if "⚠️" in log or "insufficient" in log.lower():
+                    st.warning(log)
+                else:
+                    st.info(log)
+        with tab_raw:
+            if show_raw_payload:
+                st.json(meta)
+            else:
+                st.caption("사이드바에서 'Raw API Response 보기'를 켜면 전체 payload를 볼 수 있습니다.")
+
+
+sidebar_config = render_sidebar()
+readiness = load_readiness()
+
 st.title("🔬 BioLinker AI Searcher")
-st.markdown("사용자가 직접 입력하거나 환경 변수에 설정된 API 키를 사용하여 분석을 수행합니다.")
+st.markdown("문헌 검색, 그래프 탐색, route confidence, citation trace를 한 화면에서 확인합니다.")
 
-# ---------------------------------------------------------
-# 세션 상태 초기화 및 과거 로그 불러오기
-# ---------------------------------------------------------
+if readiness.get("ready"):
+    st.success(
+        f"Backend Ready | embedding={readiness.get('embedding_model')} | device={readiness.get('embedding_device')}"
+    )
+else:
+    st.warning(f"Backend not ready: {readiness.get('status')} | {readiness.get('error', '')}")
+
 if "messages" not in st.session_state:
-    if CHAT_LOG_FILE.exists():
+    log_file = session_log_file()
+    if log_file.exists():
         try:
-            with open(CHAT_LOG_FILE, "r", encoding="utf-8") as f:
-                st.session_state.messages = json.load(f)
+            with open(log_file, "r", encoding="utf-8") as handle:
+                st.session_state.messages = json.load(handle)
         except Exception:
             clear_chat_history()
     else:
         clear_chat_history()
 
-# ---------------------------------------------------------
-# [사이드바 확장] 대화 기록 관리 도구 추가
-# ---------------------------------------------------------
 with st.sidebar:
     st.markdown("---")
-    st.subheader("💾 검색 기록 관리")
+    st.subheader("💾 세션 로그 관리")
+    st.caption(f"session_id: `{get_session_id()}`")
     col1, col2 = st.columns(2)
-    
-    # 초기화 버튼
     with col1:
         if st.button("🔄 기록 초기화", use_container_width=True):
             clear_chat_history()
             st.rerun()
-            
-    # 다운로드 버튼
     with col2:
-        chat_json = json.dumps(st.session_state.messages, ensure_ascii=False, indent=2)
         st.download_button(
             label="📥 다운로드",
-            data=chat_json,
-            file_name="biolinker_chat_log.json",
+            data=json.dumps(st.session_state.messages, ensure_ascii=False, indent=2),
+            file_name=f"biolinker_chat_{get_session_id()}.json",
             mime="application/json",
-            use_container_width=True
+            use_container_width=True,
         )
 
-# ---------------------------------------------------------
-# 기존 대화 기록 출력
-# ---------------------------------------------------------
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-        if "route" in msg:
-            st.caption(f"🧭 탐색 경로: **{msg['route'].upper()}**")
+for message in st.session_state.messages:
+    render_assistant_message(message, show_raw_payload=sidebar_config["show_raw_payload"])
 
-# ---------------------------------------------------------
-# 사용자 질문 입력 및 응답 생성 로직
-# ---------------------------------------------------------
 if prompt := st.chat_input("질문을 입력하세요..."):
-    # API Key 검증
-    if not config["api_key"]:
-        st.error("⚠️ 사이드바에서 선택한 모델의 API Key를 먼저 입력해주세요. (.env 파일 확인 필요)")
+    if sidebar_config.get("auth_mode") not in {"hermes_openai_key", "oauth"} and not sidebar_config["api_key"]:
+        st.error("⚠️ 사이드바에서 선택한 모델의 API Key를 먼저 입력해주세요.")
         st.stop()
 
-    with st.chat_message("user"):
-        st.markdown(prompt)
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    save_chat_history() # 질문 저장
+    user_message = {"role": "user", "content": prompt}
+    st.session_state.messages.append(user_message)
+    save_chat_history()
+    render_assistant_message(user_message)
 
     with st.chat_message("assistant"):
-        response_placeholder = st.empty()
-        
-        with st.spinner(f"{config['model_name']} 분석 중..."):
+        placeholder = st.empty()
+        with st.spinner(f"{sidebar_config['model_name']} 분석 중..."):
             try:
                 payload = {
                     "question": prompt,
-                    "provider": config["provider"],
-                    "model_name": config["model_name"],
-                    "api_key": config["api_key"],
-                    "use_langsmith": config["use_langsmith"],
-                    "langsmith_api_key": config["langsmith_api_key"]
+                    "provider": sidebar_config["provider"],
+                    "model_name": sidebar_config["model_name"],
+                    "api_key": sidebar_config["api_key"],
+                    "auth_mode": sidebar_config.get("auth_mode", "api_key"),
+                    "use_langsmith": sidebar_config["use_langsmith"],
+                    "langsmith_api_key": sidebar_config["langsmith_api_key"],
+                    "retrieval_mode": sidebar_config["retrieval_mode"],
+                    "top_k": sidebar_config["top_k"],
+                    "session_id": get_session_id(),
                 }
-                
                 start_time = time.time()
-                response = requests.post(API_URL, json=payload, timeout=60)
+                response = requests.post(API_URL, json=payload, timeout=app_config.REQUEST_TIMEOUT_SECONDS)
                 response.raise_for_status()
-                
                 result = response.json()
-                final_answer = result.get("final_answer", "결과를 가져오지 못했습니다.")
-                route = result.get("route", "unknown")
-                logs = result.get("logs", [])
-                elapsed_time = time.time() - start_time
-                
-                st.markdown(f"<span style='color:green; font-size:0.8em;'>✓ {route.upper()} 탐색 및 합성 완료 ({elapsed_time:.2f}초)</span>", unsafe_allow_html=True)
-                
-                # 최종 답변 출력
-                response_placeholder.markdown(final_answer)
-                
-                if logs:
-                    with st.expander("🛠️ 에이전트 사고 과정 (Trace Logs)", expanded=False):
-                        for log in logs:
-                            # 에러나 경고 기호가 있으면 warning으로 시각적 구분
-                            if "⚠️" in log or "❌" in log:
-                                st.warning(log)
-                            else:
-                                st.info(log)
-                
-                st.session_state.messages.append({
-                    "role": "assistant", 
-                    "content": final_answer,
-                    "route": route
-                })
-                save_chat_history() # 답변 완료 후 상태 저장
-                
-            except Exception as e:
-                st.error(f"❌ 오류가 발생했습니다: {e}")
+                elapsed = time.time() - start_time
+                placeholder.markdown(result.get("final_answer", "결과를 가져오지 못했습니다."))
+                st.caption(
+                    f"✓ route={result.get('route','unknown').upper()} | confidence={float(result.get('route_confidence',0.0)):.2f} | "
+                    f"latency={result.get('latency_ms', elapsed * 1000):.0f} ms"
+                )
+                assistant_message = {
+                    "role": "assistant",
+                    "content": result.get("final_answer", "결과를 가져오지 못했습니다."),
+                    "meta": result,
+                }
+                st.session_state.messages.append(assistant_message)
+                save_chat_history()
+                render_assistant_message(assistant_message, show_raw_payload=sidebar_config["show_raw_payload"])
+            except Exception as exc:
+                st.error(f"❌ 오류가 발생했습니다: {exc}")
 
-# 하단 푸터
 st.markdown("---")
-st.caption(f"Connected to: {config['provider'].upper()} ({config['model_name']})")
+st.caption(
+    f"Connected to: {sidebar_config['provider'].upper()} ({sidebar_config['model_name']}) | session={get_session_id()}"
+)

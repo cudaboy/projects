@@ -49,3 +49,7 @@ data/chat_history.json
 .vscode/
 .idea/
 *.swp
+
+# API/UI session logs and local run artifacts
+data/session_logs/
+data/chat_*.json
