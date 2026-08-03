@@ -23,7 +23,25 @@ class StockAnalysisHistory(Base):
     # 3. 주가/차트 에이전트 (Trader) 분석 결과
     stock_summary = Column(Text, nullable=True)
     
-    # 4. 총괄 펀드매니저의 최종 리포트 및 투자의견
+    # 4. Valuation Agent의 DCF-lite/상대가치 요약
+    valuation_summary = Column(Text, nullable=True)
+
+    # 5. Risk Manager의 결정론적 점수/리스크 요약
+    risk_summary = Column(Text, nullable=True)
+
+    # 6. 알고리즘 버전 및 점수 JSON
+    investment_score = Column(Text, nullable=True)
+
+    # 7. Phase 5 백테스트/성과 추적용 분석 시점 메타데이터
+    stock_code = Column(String(20), nullable=True)
+    analysis_price = Column(String(50), nullable=True)
+    analysis_price_date = Column(String(20), nullable=True)
+
+    # 8. 알고리즘 버전/평점 스냅샷
+    algorithm_version = Column(String(100), nullable=True)
+    rating = Column(String(20), nullable=True)
+
+    # 9. 총괄 펀드매니저의 최종 리포트 및 투자의견
     final_report = Column(Text, nullable=True)
     
     # 분석이 실행된 시간 (서버 시간 기준 자동 생성)

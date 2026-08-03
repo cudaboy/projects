@@ -1,0 +1,11 @@
+# Local Python environment and caches
+.venv/
+__pycache__/
+*.py[cod]
+
+# Node/Vite local outputs
+frontend-react/node_modules/
+frontend-react/dist/
+
+# Local runtime logs
+*.log

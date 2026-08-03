@@ -9,9 +9,12 @@ class ModelSettings(BaseModel):
     """
     프론트엔드 사이드바에서 설정한 LLM 동적 파라미터 스키마
     """
-    provider: str = Field(default="OpenAI", description="LLM 제공자 (OpenAI, Anthropic, Google Gemini)")
+    provider: str = Field(default="OpenAI", description="LLM 제공자 (OpenAI, Anthropic, Google Gemini, Ollama, Grok/xAI, OpenRouter)")
     model_name: str = Field(default="gpt-4o", description="사용할 세부 모델명")
     temperature: float = Field(default=0.2, description="창의성 조절 파라미터 (0.0 ~ 1.0)")
+    enable_thinking: Optional[bool] = Field(default=False, description="추론/thinking 지원 모델에서 사고 모드 사용 여부")
+    reasoning_effort: Optional[str] = Field(default="medium", description="Thinking 모델의 추론 강도 (low, medium, high)")
+    base_url: Optional[str] = Field(default=None, description="OpenAI-compatible/Ollama/OpenRouter 등 커스텀 Base URL")
     
     # 🌟 [추가] OpenAI API 키 필드 (main.py의 AttributeError 해결용)
     openai_api_key: Optional[str] = Field(default=None, description="OpenAI 전용 API 키")
@@ -50,6 +53,12 @@ class AgentAnalysisData(BaseModel):
     company_finance: str = Field(description="CFO 에이전트의 재무제표 종합 평가")
     company_news: str = Field(description="애널리스트 에이전트의 뉴스 기반 모멘텀 분석")
     company_stock: str = Field(description="트레이더 에이전트의 과거 주가 기반 기술적 진단")
+    company_valuation: Optional[str] = Field(default=None, description="Valuation Agent의 DCF-lite/상대가치 요약 JSON")
+    stock_code: Optional[str] = Field(default=None, description="Phase 5 백테스트용 6자리 종목 코드")
+    analysis_price: Optional[float] = Field(default=None, description="Phase 5 백테스트용 분석 시점 기준 종가")
+    analysis_price_date: Optional[str] = Field(default=None, description="분석 시점 기준 가격 날짜")
+    company_risk: Optional[str] = Field(default=None, description="Risk Manager의 결정론적 점수/리스크 요약 JSON")
+    investment_score: Optional[str] = Field(default=None, description="알고리즘 버전/점수/투자의견 힌트 JSON")
     final_report: str = Field(description="펀드매니저 에이전트의 최종 종합 리포트 및 투자 의견")
 
 class StockResponse(BaseModel):

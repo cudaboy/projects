@@ -17,7 +17,7 @@ services:
       - ./ai_analyst.db:/app/ai_analyst.db
     restart: always
 
-  # 2. 프론트엔드 서비스 (Streamlit) [cite: 1]
+  # 2. 프론트엔드 서비스 (Vite React + Nginx)
   frontend:
     image: ai-analyst-frontend:latest
     build:
@@ -25,10 +25,7 @@ services:
       dockerfile: frontend.Dockerfile
     container_name: ai-analyst-frontend
     ports:
-      - "8501:8501"
-    environment:
-      # 🌟 Docker 네트워크 내부에서 프론트엔드가 백엔드 컨테이너를 찾을 수 있도록 URL 설정
-      - API_BASE_URL=http://backend:8000/api/v1
+      - "8501:80"
     depends_on:
       - backend
     restart: always

@@ -30,7 +30,8 @@
   - ![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-D71F00?style=for-the-badge)
 
 - **Frontend UI & Data Analysis**
-  - ![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=Streamlit&logoColor=white)
+  - ![React](https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+  - ![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
   - ![Pandas](https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white)
 
 - **DevOps & Environment**
@@ -58,10 +59,11 @@
  │   └── backend.Dockerfile      # 백엔드 이미지 빌드 명세
  │
  ├── 🖥️ Frontend (UI & Analytics)
- │   ├── frontend/
+ │   │   ├── frontend-react/           # Vite React 메인 UI (Coinbase/Toss-like blue fintech design)
+ │   │   ├── frontend/                 # 기존 Streamlit UI 보관
  │   │   ├── pages/
  │   │   │   └── 1_📊_History.py  # 과거 분석 기록 조회 및 통계 대시보드
- │   │   ├── 0_📈_Home.py         # 메인 분석 실행 및 결과 탭 렌더링 (Port 8501)
+ │   │   ├── 0_📈_Home.py         # 기존 Streamlit 홈 화면
  │   │   ├── sidebar.py          # API 키 주입 및 LLM 모델 동적 선택 UI
  │   │   └── ui_components.py    # 결과 리포트용 예쁜 마크다운 렌더링 컴포넌트
  │   └── frontend.Dockerfile     # 프론트엔드 이미지 빌드 명세
@@ -150,6 +152,26 @@
 <br>
 <br>
 
+# ✅ Algorithm Update Scope
+
+이번 버전은 Phase 5까지의 알고리즘 업데이트를 포함합니다.
+
+- **Phase 1~2: Deterministic Technical Engine** — RSI, MACD, Bollinger Band, MA, 변동성, 거래량 z-score, 지지/저항선, `technical_score` 계산.
+- **Phase 3: Risk/Scoring Layer** — `algorithm_version`, `final_score`, `risk_score`, `rating_hint`, 리스크 플래그를 JSON으로 저장.
+- **Phase 4: Valuation / DCF-lite** — 재무·기술 텍스트 기반 보수적 DCF-lite/상대가치 보조 점수와 target band 생성.
+- **Phase 5: Backtest / Version Performance** — 신규 분석부터 종목코드, 분석시점 기준가, 기준가 날짜를 저장하고 `/api/v1/performance`에서 5/20/60일 후속 수익률·방향성 수익률·승률을 집계.
+- **UI** — `frontend-react/` Vite React 대시보드가 결과 리포트와 Phase 5 성과 지표를 시각화합니다.
+
+주요 API:
+
+```text
+POST /api/v1/analyze
+GET  /api/v1/history
+GET  /api/v1/performance
+```
+
+<br>
+
 # 💻 Getting Started (Docker Compose)
   Docker가 설치된 로컬 환경에서 명령어 한 줄로 프론트엔드와 백엔드를 동시에 구동할 수 있습니다.
 
@@ -175,7 +197,7 @@
 
 3. **접속**
 
-    뷰어 UI (Streamlit): `http://localhost:8501`
+    React/Vite UI: `http://localhost:8501`
 
     백엔드 API (FastAPI): `http://localhost:8000/docs`
 
@@ -219,15 +241,9 @@ Minikube를 활용하여 로컬 K8s 클러스터에 서비스를 배포하는 �
 
 # 💡 Future Work (향후 개선 계획)
 
-- **기술적 분석(Technical Analysis) 고도화**
-
-  MACD, RSI, 볼린저 밴드 등 다양한 보조 지표를 추가하여 차트 분석의 정밀도를 향상시킬 예정입니다.
-
-<br>
-
 - **실시간 주가 차트 시각화** 
 
-  단순히 텍스트 리포트만 제공하는 것이 아니라, `Plotly` 등을 활용하여 실제 주가 이동평균선과 거래량 차트를 UI에 직접 렌더링할 예정입니다.
+  현재는 5/20/60일 후속 수익률과 점수 카드를 제공하며, 향후 `Plotly` 또는 React chart 라이브러리로 이동평균선·거래량·수익률 곡선을 직접 렌더링할 예정입니다.
 
 <br>
 

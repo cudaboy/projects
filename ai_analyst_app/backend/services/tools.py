@@ -17,6 +17,11 @@ import FinanceDataReader as fdr
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_core.tools import tool
 
+from backend.services.indicators.technical import (
+    calculate_technical_summary,
+    parse_naver_chart_response,
+)
+
 # 🌟 DuckDuckGo 검색 라이브러리 추가
 from langchain_community.tools import DuckDuckGoSearchRun
 
@@ -190,7 +195,31 @@ def get_data(company_code: str, sdate: str, edate: str) -> str:
 
     stock_url = f"https://m.stock.naver.com/front-api/external/chart/domestic/info?symbol={company_code}&requestType=1&startTime={sdate}&endTime={edate}&timeframe=day"
     try:
-        response = httpx.get(stock_url)
+        response = httpx.get(stock_url, timeout=10.0)
+        response.raise_for_status()
         return response.text.strip()
     except Exception as e:
         return f"주가 데이터를 가져오는 중 오류 발생: {str(e)}"
+
+
+@tool
+def technical_report(company_code: str, sdate: str, edate: str) -> str:
+    """
+    종목 코드와 날짜 범위를 입력받아 원시 일봉 데이터를 수집한 뒤 RSI, MACD,
+    볼린저밴드, 이동평균, 지지/저항선, 변동성, 거래량 스파이크, 기술 점수를
+    JSON 문자열로 반환한다. (sdate/edate 형식: YYYYMMDD)
+    """
+    if not re.match(r'^\d{6}$', str(company_code)):
+        return json.dumps(
+            {"status": "error", "message": f"잘못된 종목 코드입니다: {company_code}"},
+            ensure_ascii=False,
+        )
+
+    raw_data = get_data.invoke({"company_code": company_code, "sdate": sdate, "edate": edate})
+    if isinstance(raw_data, str) and raw_data.startswith("주가 데이터를 가져오는 중 오류"):
+        return json.dumps({"status": "error", "message": raw_data}, ensure_ascii=False)
+
+    df = parse_naver_chart_response(raw_data)
+    summary = calculate_technical_summary(df)
+    summary["company_code"] = company_code
+    return json.dumps(summary, ensure_ascii=False)
