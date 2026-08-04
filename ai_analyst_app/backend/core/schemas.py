@@ -10,7 +10,7 @@ class ModelSettings(BaseModel):
     프론트엔드 사이드바에서 설정한 LLM 동적 파라미터 스키마
     """
     provider: str = Field(default="OpenAI", description="LLM 제공자 (OpenAI, Anthropic, Google Gemini, Ollama, Grok/xAI, OpenRouter, DeepSeek, Mistral, Cohere)")
-    model_name: str = Field(default="gpt-5", description="사용할 세부 모델명")
+    model_name: str = Field(default="gpt-5.6", description="사용할 세부 모델명")
     temperature: float = Field(default=0.2, description="창의성 조절 파라미터 (0.0 ~ 1.0)")
     enable_thinking: Optional[bool] = Field(default=False, description="추론/thinking 지원 모델에서 사고 모드 사용 여부")
     reasoning_effort: Optional[str] = Field(default="medium", description="Thinking 모델의 추론 강도 (low, medium, high)")

@@ -198,7 +198,7 @@ function App() {
   const [company, setCompany] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [settings, setSettings] = useState({ provider: 'OpenAI', model_name: 'gpt-5', temperature: 0.2, enable_thinking: false, reasoning_effort: 'medium', base_url: '', billing_mode: 'token_metered', monthly_budget: '', monthly_quota: '', quota_unit: 'requests', custom_api_key: '', openai_api_key: '', use_langsmith: false, langsmith_api_key: '', naver_client_id: '', naver_client_secret: '' });
+  const [settings, setSettings] = useState({ provider: 'OpenAI', model_name: 'gpt-5.6', temperature: 0.2, enable_thinking: false, reasoning_effort: 'medium', base_url: '', billing_mode: 'token_metered', monthly_budget: '', monthly_quota: '', quota_unit: 'requests', custom_api_key: '', openai_api_key: '', use_langsmith: false, langsmith_api_key: '', naver_client_id: '', naver_client_secret: '' });
 
   const canSubmit = useMemo(() => company.trim() && !loading, [company, loading]);
   const analyze = async (e) => {

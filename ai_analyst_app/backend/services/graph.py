@@ -44,15 +44,15 @@ def _is_thinking_model(provider: str, model_name: str) -> bool:
     if provider_key == "openai":
         return model_key.startswith(("o1", "o3", "o4")) or "gpt-5" in model_key
     if provider_key in {"grok", "xai"}:
-        return "grok-3-mini" in model_key or "grok-4" in model_key or "reasoning" in model_key
+        return any(token in model_key for token in ("grok-3-mini", "grok-4", "grok-4.20", "grok-4.3", "grok-4.5", "reasoning", "multi-agent"))
     if provider_key == "openrouter":
         return any(token in model_key for token in ("gpt-5", "o3", "o4", "claude", "grok-4", "deepseek-r1", "reason"))
     if provider_key == "deepseek":
         return "reasoner" in model_key or "r1" in model_key or "reason" in model_key
     if provider_key == "anthropic":
-        return "claude-3-7" in model_key or "claude-4" in model_key or "sonnet-4" in model_key or "opus-4" in model_key
+        return any(token in model_key for token in ("claude-3-7", "claude-4", "claude-5", "sonnet-4", "opus-4", "sonnet-5", "opus-5", "mythos", "fable"))
     if provider_key == "google gemini":
-        return "gemini-2.5" in model_key
+        return "gemini-2.5" in model_key or "gemini-3" in model_key
     if provider_key in {"mistral", "cohere"}:
         return "reason" in model_key or "magistral" in model_key
     # Local Ollama models vary; enable only by model naming convention.
