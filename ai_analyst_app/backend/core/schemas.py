@@ -9,12 +9,16 @@ class ModelSettings(BaseModel):
     """
     프론트엔드 사이드바에서 설정한 LLM 동적 파라미터 스키마
     """
-    provider: str = Field(default="OpenAI", description="LLM 제공자 (OpenAI, Anthropic, Google Gemini, Ollama, Grok/xAI, OpenRouter)")
-    model_name: str = Field(default="gpt-4o", description="사용할 세부 모델명")
+    provider: str = Field(default="OpenAI", description="LLM 제공자 (OpenAI, Anthropic, Google Gemini, Ollama, Grok/xAI, OpenRouter, DeepSeek, Mistral, Cohere)")
+    model_name: str = Field(default="gpt-5", description="사용할 세부 모델명")
     temperature: float = Field(default=0.2, description="창의성 조절 파라미터 (0.0 ~ 1.0)")
     enable_thinking: Optional[bool] = Field(default=False, description="추론/thinking 지원 모델에서 사고 모드 사용 여부")
     reasoning_effort: Optional[str] = Field(default="medium", description="Thinking 모델의 추론 강도 (low, medium, high)")
     base_url: Optional[str] = Field(default=None, description="OpenAI-compatible/Ollama/OpenRouter 등 커스텀 Base URL")
+    billing_mode: Optional[str] = Field(default="token_metered", description="요금제 방식: token_metered, quota_metered, flat_rate, local_free")
+    monthly_budget: Optional[float] = Field(default=None, description="월정액/예산 금액. 실제 과금 제어가 아닌 UI/운영 메타데이터")
+    monthly_quota: Optional[float] = Field(default=None, description="정량제 한도. 예: 월 요청 수/크레딧 수")
+    quota_unit: Optional[str] = Field(default=None, description="정량 단위. 예: requests, credits, won, usd")
     
     # 🌟 [추가] OpenAI API 키 필드 (main.py의 AttributeError 해결용)
     openai_api_key: Optional[str] = Field(default=None, description="OpenAI 전용 API 키")

@@ -45,8 +45,16 @@ def _is_thinking_model(provider: str, model_name: str) -> bool:
         return model_key.startswith(("o1", "o3", "o4")) or "gpt-5" in model_key
     if provider_key in {"grok", "xai"}:
         return "grok-3-mini" in model_key or "grok-4" in model_key or "reasoning" in model_key
+    if provider_key == "openrouter":
+        return any(token in model_key for token in ("gpt-5", "o3", "o4", "claude", "grok-4", "deepseek-r1", "reason"))
+    if provider_key == "deepseek":
+        return "reasoner" in model_key or "r1" in model_key or "reason" in model_key
     if provider_key == "anthropic":
         return "claude-3-7" in model_key or "claude-4" in model_key or "sonnet-4" in model_key or "opus-4" in model_key
+    if provider_key == "google gemini":
+        return "gemini-2.5" in model_key
+    if provider_key in {"mistral", "cohere"}:
+        return "reason" in model_key or "magistral" in model_key
     # Local Ollama models vary; enable only by model naming convention.
     if provider_key == "ollama":
         return any(token in model_key for token in ("think", "reason", "r1", "qwq"))
@@ -75,6 +83,12 @@ def _reasoning_kwargs(provider: str, model_name: str, settings: dict) -> dict:
         return {"thinking_level": effort, "include_thoughts": True}
     if provider_key == "ollama":
         return {"extra_body": {"think": True}}
+    if provider_key == "deepseek":
+        return {"extra_body": {"reasoning_effort": effort}}
+    if provider_key == "openrouter":
+        return {"extra_body": {"reasoning": {"effort": effort}}}
+    if provider_key in {"mistral", "cohere"}:
+        return {"extra_body": {"reasoning_effort": effort}}
     return {}
 
 
@@ -129,6 +143,30 @@ def get_llm(settings: dict):
                 temperature=temperature,
                 api_key=custom_api_key or os.getenv("OPENROUTER_API_KEY"),
                 base_url=base_url or "https://openrouter.ai/api/v1",
+                **kwargs,
+            )
+        if provider_key == "deepseek":
+            return ChatOpenAI(
+                model=model_name,
+                temperature=temperature,
+                api_key=custom_api_key or os.getenv("DEEPSEEK_API_KEY"),
+                base_url=base_url or "https://api.deepseek.com/v1",
+                **kwargs,
+            )
+        if provider_key == "mistral":
+            return ChatOpenAI(
+                model=model_name,
+                temperature=temperature,
+                api_key=custom_api_key or os.getenv("MISTRAL_API_KEY"),
+                base_url=base_url or "https://api.mistral.ai/v1",
+                **kwargs,
+            )
+        if provider_key == "cohere":
+            return ChatOpenAI(
+                model=model_name,
+                temperature=temperature,
+                api_key=custom_api_key or os.getenv("COHERE_API_KEY"),
+                base_url=base_url or "https://api.cohere.com/compatibility/v1",
                 **kwargs,
             )
         return ChatOpenAI(model=model_name, temperature=temperature, api_key=custom_api_key, base_url=base_url, **kwargs)

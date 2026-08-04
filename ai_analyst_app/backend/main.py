@@ -120,6 +120,12 @@ async def analyze_stock(request: StockRequest, db: Session = Depends(get_db)):
             runtime_keys["XAI_API_KEY"] = ms.custom_api_key
         elif provider == "openrouter":
             runtime_keys["OPENROUTER_API_KEY"] = ms.custom_api_key
+        elif provider == "deepseek":
+            runtime_keys["DEEPSEEK_API_KEY"] = ms.custom_api_key
+        elif provider == "mistral":
+            runtime_keys["MISTRAL_API_KEY"] = ms.custom_api_key
+        elif provider == "cohere":
+            runtime_keys["COHERE_API_KEY"] = ms.custom_api_key
         elif provider == "anthropic":
             runtime_keys["ANTHROPIC_API_KEY"] = ms.custom_api_key
         elif provider == "google gemini":

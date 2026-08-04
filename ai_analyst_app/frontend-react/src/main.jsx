@@ -2,23 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { marked } from 'marked';
 import { Activity, BarChart3, Brain, CheckCircle2, Database, LineChart, Loader2, ShieldAlert, TrendingUp } from 'lucide-react';
+import { BILLING_MODES, PROVIDERS, supportsThinking } from './modelCatalog';
 import './styles.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
-
-const PROVIDERS = {
-  OpenAI: { defaultModel: 'gpt-4o', models: ['gpt-4o', 'gpt-4.1', 'gpt-5', 'o3', 'o4-mini'], apiLabel: 'OpenAI API Key', thinking: /^(o1|o3|o4)|gpt-5/i },
-  Anthropic: { defaultModel: 'claude-sonnet-4-5', models: ['claude-sonnet-4-5', 'claude-opus-4-1', 'claude-3-7-sonnet-latest'], apiLabel: 'Anthropic API Key', thinking: /(claude-3-7|claude.*4|sonnet-4|opus-4)/i },
-  'Google Gemini': { defaultModel: 'gemini-2.5-pro', models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'], apiLabel: 'Google API Key', thinking: /gemini-2\.5/i },
-  Grok: { defaultModel: 'grok-4', models: ['grok-4', 'grok-3-mini', 'grok-2-vision-latest'], apiLabel: 'xAI / Grok API Key', defaultBaseUrl: 'https://api.x.ai/v1', thinking: /(grok-4|grok-3-mini|reasoning)/i },
-  Ollama: { defaultModel: 'llama3.1', models: ['llama3.1', 'qwen3', 'deepseek-r1', 'gpt-oss:20b'], apiLabel: 'Ollama API Key (보통 비움)', defaultBaseUrl: 'http://localhost:11434/v1', thinking: /(think|reason|r1|qwq|qwen3|gpt-oss)/i },
-  OpenRouter: { defaultModel: 'openai/gpt-4o', models: ['openai/gpt-4o', 'anthropic/claude-sonnet-4.5', 'x-ai/grok-4', 'deepseek/deepseek-r1'], apiLabel: 'OpenRouter API Key', defaultBaseUrl: 'https://openrouter.ai/api/v1', thinking: /(gpt-5|o3|o4|claude.*4|grok-4|deepseek-r1)/i },
-};
-
-function supportsThinking(provider, modelName) {
-  const spec = PROVIDERS[provider];
-  return Boolean(spec?.thinking?.test(modelName || ''));
-}
 
 function safeJson(text) {
   if (!text) return null;
@@ -87,9 +74,28 @@ function SettingsPanel({ settings, setSettings }) {
     <label>{providerSpec.apiLabel}
       <input type="password" value={settings.custom_api_key} onChange={e => update('custom_api_key', e.target.value)} placeholder="서버 .env 사용 시 비워두기" />
     </label>
-    {(settings.provider === 'Ollama' || settings.provider === 'Grok' || settings.provider === 'OpenRouter') ? <label>Base URL
+    {providerSpec.defaultBaseUrl ? <label>Base URL
       <input value={settings.base_url} onChange={e => update('base_url', e.target.value)} placeholder={providerSpec.defaultBaseUrl || 'https://.../v1'} />
     </label> : null}
+    <div className="billing-box">
+      <p className="eyebrow">Billing</p>
+      <label>요금제 방식
+        <select value={settings.billing_mode} onChange={e => update('billing_mode', e.target.value)}>
+          {Object.entries(BILLING_MODES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+      </label>
+      {settings.billing_mode !== 'token_metered' ? <div className="billing-grid">
+        <label>월 예산/정액
+          <input type="number" min="0" value={settings.monthly_budget} onChange={e => update('monthly_budget', e.target.value)} placeholder="예: 20" />
+        </label>
+        <label>월 정량 한도
+          <input type="number" min="0" value={settings.monthly_quota} onChange={e => update('monthly_quota', e.target.value)} placeholder="예: 1000" />
+        </label>
+        <label>단위
+          <input value={settings.quota_unit} onChange={e => update('quota_unit', e.target.value)} placeholder="requests / credits" />
+        </label>
+      </div> : null}
+    </div>
     <label className={`checkbox-row ${thinkingAvailable ? '' : 'disabled'}`} title={thinkingAvailable ? '선택한 모델에서 thinking/reasoning 옵션을 전달합니다.' : '선택한 provider/model은 명시적 thinking 옵션 대상이 아닙니다.'}>
       <input type="checkbox" disabled={!thinkingAvailable} checked={Boolean(settings.enable_thinking && thinkingAvailable)} onChange={e => update('enable_thinking', e.target.checked)} />
       Thinking / Reasoning 사용
@@ -192,7 +198,7 @@ function App() {
   const [company, setCompany] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [settings, setSettings] = useState({ provider: 'OpenAI', model_name: 'gpt-4o', temperature: 0.2, enable_thinking: false, reasoning_effort: 'medium', base_url: '', custom_api_key: '', openai_api_key: '', use_langsmith: false, langsmith_api_key: '', naver_client_id: '', naver_client_secret: '' });
+  const [settings, setSettings] = useState({ provider: 'OpenAI', model_name: 'gpt-5', temperature: 0.2, enable_thinking: false, reasoning_effort: 'medium', base_url: '', billing_mode: 'token_metered', monthly_budget: '', monthly_quota: '', quota_unit: 'requests', custom_api_key: '', openai_api_key: '', use_langsmith: false, langsmith_api_key: '', naver_client_id: '', naver_client_secret: '' });
 
   const canSubmit = useMemo(() => company.trim() && !loading, [company, loading]);
   const analyze = async (e) => {
